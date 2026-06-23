@@ -1,5 +1,5 @@
 # Meridian SENTINEL — 2-Week Implementation Plan
-**Real-Time Threat Detection & Mitigation | Cybersecurity for Banking**
+**Real-Time Threat Detection & Mitigation  Cybersecurity for Banking**
 
 
 ---
@@ -154,19 +154,19 @@ These are the stories you **must ship** within 2 weeks.
 - [ ] Verify push access to both `main` and `dev` for your account
 
 **GitHub Project Setup**
-- [ ] Create GitHub Projects Kanban board
-- [ ] Configure columns: **Backlog** → **In Progress** → **Review** → **Done**
-- [ ] Add all 10 User Stories (US-01 through US-10) to backlog:
-  - [ ] US-01: Load & preprocess PaySim (Data Epic)
-  - [ ] US-02: Log ingestion to Elasticsearch (Data Epic)
-  - [ ] US-03: Train LSTM ≥95% accuracy (LSTM Epic)
-  - [ ] US-04: LSTM inference REST API (LSTM Epic)
-  - [ ] US-05: SIEM detection rules (SIEM Epic)
-  - [ ] US-06: Automated playbooks (SIEM Epic)
-  - [ ] US-07: Kibana dashboard (Dashboard Epic)
-  - [ ] US-08: Compliance audit log export (Compliance Epic)
-  - [ ] US-09: README & deployment guide (Docs Epic)
-  - [ ] US-10: Control mapping document (Compliance Epic)
+- [x] Create GitHub Projects Kanban board (Implemented via local `PROJECT_BOARD.md` to bypass UI limitations)
+- [x] Configure columns: **Backlog** → **In Progress** → **Review** → **Done**
+- [x] Add all 10 User Stories (US-01 through US-10) to backlog:
+  - [x] US-01: Load & preprocess PaySim (Data Epic)
+  - [x] US-02: Log ingestion to Elasticsearch (Data Epic)
+  - [x] US-03: Train LSTM ≥95% accuracy (LSTM Epic)
+  - [x] US-04: LSTM inference REST API (LSTM Epic)
+  - [x] US-05: SIEM detection rules (SIEM Epic)
+  - [x] US-06: Automated playbooks (SIEM Epic)
+  - [x] US-07: Kibana dashboard (Dashboard Epic)
+  - [x] US-08: Compliance audit log export (Compliance Epic)
+  - [x] US-09: README & deployment guide (Docs Epic)
+  - [x] US-10: Control mapping document (Compliance Epic)
 
 **Project Folder Structure**
 - [ ] Create `/data/` directory (for raw PaySim CSV)
