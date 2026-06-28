@@ -16,14 +16,23 @@ PAYSIM_COLUMNS = ['step', 'type', 'amount', 'nameOrig', 'oldbalanceOrg',
                   'isFraud', 'isFlaggedFraud']
 
 
-def load_paysim(csv_path: str) -> pd.DataFrame:
+def load_paysim(csv_path: str, sample: int = 0) -> pd.DataFrame:
     logger.info(f"Loading PaySim CSV from {csv_path} ...")
-    df = pd.read_csv(csv_path)
+    # float32 halves memory vs default float64
+    float_cols = {'amount': 'float32', 'oldbalanceOrg': 'float32', 'newbalanceOrig': 'float32',
+                  'oldbalanceDest': 'float32', 'newbalanceDest': 'float32'}
+    df = pd.read_csv(csv_path, dtype=float_cols)
     df.columns = df.columns.str.strip()
     missing = [c for c in PAYSIM_COLUMNS if c not in df.columns]
     if missing:
         raise ValueError(f"PaySim CSV missing columns: {missing}")
-    logger.info(f"Loaded {len(df):,} rows. Fraud ratio: {df['isFraud'].mean():.4%}")
+    if sample and sample < len(df):
+        df = df.groupby('isFraud', group_keys=False).apply(
+            lambda g: g.sample(min(len(g), int(sample * len(g) / len(df))), random_state=42)
+        ).reset_index(drop=True)
+        logger.info(f"Sampled to {len(df):,} rows (stratified). Fraud ratio: {df['isFraud'].mean():.4%}")
+    else:
+        logger.info(f"Loaded {len(df):,} rows. Fraud ratio: {df['isFraud'].mean():.4%}")
     return df[PAYSIM_COLUMNS]
 
 
@@ -49,15 +58,17 @@ def main():
         help=f'Path to PaySim CSV. Defaults to {PAYSIM_CSV} if it exists, otherwise mock data.'
     )
     parser.add_argument('--mock', action='store_true', help='Force mock data even if CSV exists')
+    parser.add_argument('--sample', type=int, default=0,
+                        help='Stratified row sample from CSV (0 = use all rows). Use 2000000 on Colab free tier.')
     args = parser.parse_args()
 
     # Resolve data source
     if args.mock:
         df = generate_mock()
     elif args.csv:
-        df = load_paysim(args.csv)
+        df = load_paysim(args.csv, sample=args.sample)
     elif os.path.exists(PAYSIM_CSV):
-        df = load_paysim(PAYSIM_CSV)
+        df = load_paysim(PAYSIM_CSV, sample=args.sample)
     else:
         logger.warning(f"PaySim CSV not found at {PAYSIM_CSV}. Using mock data.")
         logger.warning("To use real data: python -m src.pipeline.run_pipeline --csv <path>")
