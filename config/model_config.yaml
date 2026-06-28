@@ -1,0 +1,25 @@
+model:
+  input_features: 12
+  sequence_length: 5
+  hidden_size_1: 128
+  hidden_size_2: 64
+  dropout: 0.30
+
+training:
+  learning_rate: 0.001
+  batch_size: 512
+  epochs: 10
+  calibration_epochs: 5
+  calibration_subset: 0.20
+  seed: 42
+
+loss:
+  # pos_weight ≈ (1 - fraud_rate) / fraud_rate; ~800 for real PaySim (0.13% fraud),
+  # computed dynamically in training loop and overrides this default
+  pos_weight: 800.0
+
+paths:
+  data_dir: data/processed
+  model_dir: models
+  results_dir: results
+  serving_dir: models/serving/lstm_v1
