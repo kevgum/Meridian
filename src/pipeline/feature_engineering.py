@@ -53,11 +53,13 @@ def engineer_features(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
     tod = df['step'] % 24
     df['time_of_day_flag'] = np.where((tod >= 8) & (tod <= 22), 0, 1)
     
-    # 5. geo_velocity_flag (mock: use random bits as real geo isn't in PaySim)
-    df['geo_velocity_flag'] = np.random.choice([0, 1], size=len(df), p=[0.99, 0.01])
-    
-    # 6. merchant_category_code (mock label encoded as PaySim has no MCC)
-    df['merchant_category_code'] = np.random.randint(0, 10, size=len(df))
+    # 5. balance_drop_to_zero: 1 if origin balance is wiped to ~0 (strongest PaySim fraud signal)
+    df['balance_drop_to_zero'] = (
+        (df['newbalanceOrig'] < 1.0) & (df['oldbalanceOrg'] > 100)
+    ).astype(float)
+
+    # 6. amount_to_balance_ratio: fraud typically takes the full balance (ratio ≈ 1.0)
+    df['amount_to_balance_ratio'] = df['amount'] / (df['oldbalanceOrg'] + 1e-6)
     
     # 7. transaction_frequency_1h (count in last 1 step)
     df['transaction_frequency_1h'] = df.groupby(['nameOrig', 'step'])['step'].transform('count')
@@ -71,24 +73,25 @@ def engineer_features(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
     overall_avg = df.groupby('nameOrig')['amount'].transform('mean') + 1e-6
     df['cumulative_spend_ratio'] = df['amount'] / overall_avg
     
-    # 10. beneficiary_risk_score (mock score [0, 1])
-    df['beneficiary_risk_score'] = np.random.uniform(0, 1, size=len(df))
+    # 10. dest_received_ratio: how much the destination received vs amount sent
+    #     legitimate ≈ 1.0; fraud mules often already moved money so dest balance doesn't match
+    df['dest_received_ratio'] = (df['newbalanceDest'] - df['oldbalanceDest']) / (df['amount'] + 1e-6)
     
     # 11. amount_zscore = (amount - customer_mean) / customer_std
     df['amount_zscore'] = df.groupby('nameOrig')['amount'].transform(
         lambda x: (x - x.mean()) / (x.std() + 1e-6)
     ).fillna(0)
     
-    # 12. session_entropy (Mock entropy of merchant categories)
-    df['session_entropy'] = np.random.uniform(0.5, 2.5, size=len(df))
+    # 12. step_norm: normalised time position within the simulation (continuous temporal signal)
+    df['step_norm'] = df['step'] / (df['step'].max() + 1e-6)
     
     # Select features
     feature_cols = [
         'amount_delta', 'balance_utilisation_ratio', 'channel_type_encoded',
-        'time_of_day_flag', 'geo_velocity_flag', 'merchant_category_code',
+        'time_of_day_flag', 'balance_drop_to_zero', 'amount_to_balance_ratio',
         'transaction_frequency_1h', 'transaction_frequency_24h',
-        'cumulative_spend_ratio', 'beneficiary_risk_score', 'amount_zscore',
-        'session_entropy'
+        'cumulative_spend_ratio', 'dest_received_ratio', 'amount_zscore',
+        'step_norm'
     ]
     
     # Fill any remaining NaNs/Infs

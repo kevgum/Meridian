@@ -8,7 +8,7 @@ model:
 training:
   learning_rate: 0.001
   batch_size: 512
-  epochs: 10
+  epochs: 20
   calibration_epochs: 5
   calibration_subset: 0.20
   seed: 42
