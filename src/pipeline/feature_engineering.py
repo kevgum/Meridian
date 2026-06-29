@@ -34,8 +34,11 @@ def engineer_features(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
     logger.info("Computing engineered features...")
     df = df.copy()
     
-    # Sort logically by time (step) to ensure sequential operations make sense
-    df = df.sort_values(['nameOrig', 'step'])
+    # Sort logically by time (step) to ensure sequential operations make sense.
+    # reset_index is critical: group.index must be 0-based positional so it can safely
+    # index into X_scaled (a positional numpy array). Without this, scrambled index values
+    # from the sort cause X_scaled[group_idx] to fetch completely wrong feature rows.
+    df = df.sort_values(['nameOrig', 'step']).reset_index(drop=True)
     
     # 1. amount_delta = transaction amount - customer rolling average (window=10)
     df['amount_delta'] = df['amount'] - df.groupby('nameOrig')['amount'].transform(
