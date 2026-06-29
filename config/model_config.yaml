@@ -14,9 +14,9 @@ training:
   seed: 42
 
 loss:
-  # WeightedRandomSampler handles class balance in batches (50% fraud/50% normal).
-  # pos_weight provides a mild additional nudge — keep low (1–5) to avoid instability.
-  pos_weight: 2.0
+  # WeightedRandomSampler balances batches to 50/50 fraud/normal.
+  # pos_weight MUST be 1.0 here — any value > 1 tips loss asymmetry toward always predicting fraud.
+  pos_weight: 1.0
 
 paths:
   data_dir: data/processed
