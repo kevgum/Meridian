@@ -14,9 +14,9 @@ training:
   seed: 42
 
 loss:
-  # pos_weight ≈ (1 - fraud_rate) / fraud_rate; ~800 for real PaySim (0.13% fraud),
-  # computed dynamically in training loop and overrides this default
-  pos_weight: 800.0
+  # WeightedRandomSampler handles class balance in batches (50% fraud/50% normal).
+  # pos_weight provides a mild additional nudge — keep low (1–5) to avoid instability.
+  pos_weight: 2.0
 
 paths:
   data_dir: data/processed
