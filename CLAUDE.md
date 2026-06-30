@@ -1,0 +1,219 @@
+# CLAUDE.md — Meridian Sentinel
+
+> Read this file at the start of every Claude session. It contains everything you need to pick up the project without re-reading the full documentation.
+
+---
+
+## Role
+
+**You are the Senior Software Engineer.** The user is the PM and Architect.
+
+- Write complete, working code only — no stubs, no TODOs, no placeholder comments
+- Follow the architecture in `docs/architecture.md` exactly
+- All Python: PEP 8, full type annotations, docstrings on classes and public methods
+- Never commit credentials or raw PII
+- Use simple commit messages — no "Co-Authored-By" or AI attribution lines
+
+---
+
+## What This Project Is
+
+**Meridian Sentinel** — hybrid real-time fraud detection prototype for Meridian Financial Services (ITW601 university project).
+
+Two detection engines fused into one threat score:
+
+```
+threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
+```
+
+- **≥ 0.70** → playbook fires (account lock + incident case + analyst notification)
+- **< 0.70** → alert logged, MONITOR state
+
+---
+
+## Current State (as of Day 6 complete)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| LSTM model | ✅ Trained + committed | 98.4% acc, 1.54% FPR at threshold=0.90 |
+| ONNX serving (FastAPI) | ✅ Running | p99=28.5ms, 7/7 smoke tests pass |
+| Elastic SIEM stack | 🔄 In progress | Docker services up; rule engine not yet written |
+| Hybrid scorer | ⬜ Not started | Day 8 |
+| Playbook engine | ⬜ Not started | Day 8 |
+| React dashboard | ⬜ Not started | Days 10–11 |
+| Acceptance tests | ⬜ Not started | Day 12 |
+
+Active branch: `feature/day6-docker-stack`  
+Main branch: `main`
+
+---
+
+## Architecture in One Page
+
+```
+Banking Channel Logs
+        ↓
+Logstash (ECS normalise + SHA-256 PII hash)
+        ↓
+Elasticsearch  ←──────────────────────────────────────────┐
+        ↓                                                  │
+Feature Engineering (Python Docker)                        │
+  - 5-transaction sliding window per customer              │
+  - 12 features → tensor [1, 5, 12]                       │
+        ↓                                                  │
+POST /v1/models/lstm:predict (ONNX Runtime + FastAPI)      │
+  → anomaly_probability [0.0 – 1.0]                       │
+        ↓                                                  │
+SIEM Rule Engine (4 rules → siem_score)                   │
+        ↓                                                  │
+Hybrid Threat Scorer                                       │
+  threat_score = lstm×0.60 + siem×0.40                    │
+        ↓                    ↓                             │
+   ≥ 0.70               < 0.70                            │
+   Playbook              MONITOR                           │
+   Engine  ─────────────────────────────────────────────→─┘
+```
+
+---
+
+## Model Details
+
+**Architecture:** `LSTMFraudDetector` in [src/models/lstm_model.py](src/models/lstm_model.py)
+
+```
+Input [batch, 5, 12]
+  → LSTM(128, batch_first=True)
+  → Dropout(0.30)
+  → LSTM(64)
+  → Dropout(0.30)
+  → Linear(64 → 1)
+  → sigmoid → anomaly_probability
+```
+
+**Training:** PyTorch, 20 epochs, WeightedRandomSampler, pos_weight=1.0  
+**Serving:** ONNX Runtime + FastAPI — auto-converts `.pt → .onnx` at container startup  
+**Config:** [config/model_config.yaml](config/model_config.yaml)  
+**Decision threshold:** 0.90 (sigmoid output ≥ 0.90 = fraud)
+
+**12 Features (in order):**
+1. `amount_delta` — deviation from customer rolling average
+2. `balance_utilisation_ratio` — newbalanceOrig / oldbalanceOrg
+3. `channel_type_encoded` — PAYMENT=0, TRANSFER=1, CASH_OUT=2, DEBIT=3, CASH_IN=4
+4. `time_of_day_flag` — 0=business hours, 1=off-hours (before 08:00 or after 22:00 AEST)
+5. `geo_velocity_flag` — 1 if location jump > 500 km/h
+6. `merchant_category_code` — MCC label-encoded
+7. `transaction_frequency_1h`
+8. `transaction_frequency_24h`
+9. `cumulative_spend_ratio`
+10. `beneficiary_risk_score`
+11. `amount_zscore`
+12. `session_entropy`
+
+---
+
+## SIEM Rules (Day 7 target)
+
+Implement in `src/siem/rule_engine.py` as `ElasticSIEMCorrelator`:
+
+| Rule | Condition | Severity |
+|------|-----------|---------|
+| Rule 1 | `amount > 10000` | HIGH |
+| Rule 2 | Geo-velocity > 500 km/h between consecutive transactions | HIGH |
+| Rule 3 | Transaction time before 08:00 or after 22:00 AEST | MEDIUM |
+| Rule 4 | Merchant ID in `watchlist/merchants.json` | HIGH |
+
+Each rule returns: `{rule_id, triggered: bool, severity: str, evidence: dict}`
+
+SIEM score normalisation:
+- 0 rules → 0.00
+- 1 rule → 0.33
+- 2 rules → 0.67
+- 3+ rules → 1.00
+
+---
+
+## Services and Ports
+
+| Service | Port | Credentials |
+|---------|------|-------------|
+| LSTM Inference API | 8080 | — |
+| Elasticsearch | 9200 | elastic / meridian123 |
+| Kibana | 5601 | elastic / meridian123 |
+| Logstash TCP | 5000 | — |
+
+All credentials come from `.env` (copy from `.env.example`). Never hardcode.
+
+---
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| [config/model_config.yaml](config/model_config.yaml) | All LSTM hyperparameters |
+| [src/models/lstm_model.py](src/models/lstm_model.py) | LSTMFraudDetector class |
+| [src/serving/app.py](src/serving/app.py) | FastAPI inference API |
+| [src/inference_client.py](src/inference_client.py) | REST wrapper (predict / predict_batch) |
+| [docker/convert_to_onnx.py](docker/convert_to_onnx.py) | .pt → .onnx conversion script |
+| [Dockerfile.serving](Dockerfile.serving) | LSTM container definition |
+| [docker-compose.yml](docker-compose.yml) | Full stack orchestration |
+| [models/lstm_checkpoint_best.pt](models/lstm_checkpoint_best.pt) | Best training checkpoint |
+| [models/MODEL_CARD.md](models/MODEL_CARD.md) | Model version + performance |
+| [results/final_metrics.json](results/final_metrics.json) | threshold=0.90 evaluation |
+| [results/latency_benchmark.json](results/latency_benchmark.json) | p99=28.5ms benchmark |
+| [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md) | Kanban — what's done vs in progress |
+| [docs/architecture.md](docs/architecture.md) | Full system architecture |
+| [docs/training-notes.md](docs/training-notes.md) | Training history + decisions |
+| [logstash/pipelines/transaction_ingest.conf](logstash/pipelines/transaction_ingest.conf) | Logstash pipeline (placeholder) |
+
+---
+
+## Decisions Already Made — Do Not Re-Open
+
+| Decision | Chosen |
+|----------|--------|
+| Serving framework | ONNX Runtime + FastAPI (not TF Serving) |
+| ONNX source | Auto-converted from `.pt` at container startup |
+| Decision threshold | 0.90 |
+| pos_weight | 1.0 (WeightedRandomSampler handles class balance) |
+| LSTM weights | `lstm_checkpoint_best.pt` (best val_acc checkpoint, not final epoch) |
+| Hybrid threshold | 0.70 |
+
+---
+
+## Known Issues and History
+
+- Old checkpoints trained with `pos_weight=773` caused all-normal collapse (val_acc=99.87% = 1−fraud_rate). Fixed in Day 5 with WeightedRandomSampler + pos_weight=1.0.
+- ONNX files are gitignored — they are generated at container startup, not committed.
+- The `models/serving/lstm_v1/` directory must exist locally for Docker volume mount to work.
+
+---
+
+## Test Commands
+
+```bash
+# Smoke tests (container must be running on :8080)
+python -m pytest tests/test_inference_api.py -v
+
+# Latency benchmark (100 calls → results/latency_benchmark.json)
+python -m src.benchmark
+
+# Full stack up
+docker compose up -d
+
+# Check container health
+docker compose ps
+
+# View logs
+docker compose logs lstm-serving --tail 50
+docker compose logs elasticsearch --tail 30
+```
+
+---
+
+## Compliance Scope
+
+- **APRA CPS 234** — information security capability, incident management, audit trail
+- **PCI DSS v4.0** — network isolation, AES-256, TLS 1.3, RBAC, immutable logs
+- **Australian Privacy Act 1988** — SHA-256 PII hashing at Logstash ingestion; raw values never stored
+
+Full control mapping: [docs/architecture.md](docs/architecture.md) Section 8
