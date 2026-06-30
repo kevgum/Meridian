@@ -18,7 +18,29 @@ Meridian Sentinel is a **hybrid real-time fraud detection system** for Meridian 
 
 ---
 
-## 2. Prerequisites
+## 2. Documentation Reading Order
+
+Read these documents in order. Each one builds on the previous.
+
+| # | Document | When to read | What you will learn |
+|---|----------|-------------|---------------------|
+| 1 | **This file** (`onboarding.md`) | First | How to set up your environment end to end |
+| 2 | [`README.md`](README.md) | After onboarding | Quick reference for commands, ports, and troubleshooting |
+| 3 | [`docs/architecture.md`](docs/architecture.md) | Before writing any code | Full system design, data flow diagrams, compliance control mapping |
+| 4 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Before starting a task | 14-day sprint plan, user stories, and acceptance criteria per day |
+| 5 | [`docs/PROJECT_BOARD.md`](docs/PROJECT_BOARD.md) | Before starting a task | Kanban board — what is done, in progress, and not started |
+| 6 | [`docs/model-serving.md`](docs/model-serving.md) | If touching the LSTM API or Docker setup | How ONNX conversion works, Dockerfile walkthrough, API reference, latency results |
+| 7 | [`docs/training-notes.md`](docs/training-notes.md) | If touching model training | History of training runs, the pos_weight collapse bug, threshold tuning decisions |
+| 8 | [`docs/colab-guide.md`](docs/colab-guide.md) | Only if retraining the model | Step-by-step Colab walkthrough, what to download, where files go |
+| 9 | [`CLAUDE.md`](CLAUDE.md) | Only if using Claude as your AI assistant | AI session context, locked decisions, architecture summary |
+
+**Minimum read for a new team member:** documents 1–5.  
+**Before touching the ML pipeline:** add 6 and 7.  
+**Before retraining:** add 8.
+
+---
+
+## 3. Prerequisites
 
 Install everything in this list before proceeding.
 
@@ -53,7 +75,7 @@ pip install pytest requests numpy
 
 ---
 
-## 3. Clone the Repository
+## 4. Clone the Repository
 
 ```bash
 git clone https://github.com/owenz4040/Meridaian.git
@@ -69,7 +91,7 @@ git checkout feature/day6-docker-stack
 
 ---
 
-## 4. Configure Your Environment
+## 5. Configure Your Environment
 
 Copy the example environment file:
 ```bash
@@ -86,7 +108,7 @@ The defaults work for local development without any changes. The `.env` file is 
 
 ---
 
-## 5. Running the Stack
+## 6. Running the Stack
 
 ### Step 1 — Build the LSTM serving container
 
@@ -154,7 +176,7 @@ Login: `elastic` / `meridian123`
 
 ---
 
-## 6. Verify the LSTM API Works
+## 7. Verify the LSTM API Works
 
 Run the smoke test suite:
 ```bash
@@ -180,7 +202,7 @@ docker compose logs lstm-serving --tail 50
 
 ---
 
-## 7. Understanding the Model Input Format
+## 8. Understanding the Model Input Format
 
 The LSTM expects:
 - **Shape:** `[batch_size, 5, 12]` — sequences of 5 transactions, each with 12 features
@@ -206,7 +228,7 @@ The 12 features are:
 
 ---
 
-## 8. Project Structure Explained
+## 9. Project Structure Explained
 
 ```
 Meridaian/
@@ -257,7 +279,7 @@ Meridaian/
 
 ---
 
-## 9. Key Technical Decisions
+## 10. Key Technical Decisions
 
 These decisions are final — do not re-open them without talking to the team:
 
@@ -273,7 +295,7 @@ These decisions are final — do not re-open them without talking to the team:
 
 ---
 
-## 10. Day-by-Day Build Status
+## 11. Day-by-Day Build Status
 
 | Day | Task | Status |
 |-----|------|--------|
@@ -292,7 +314,7 @@ These decisions are final — do not re-open them without talking to the team:
 
 ---
 
-## 11. Notebooks (Google Colab)
+## 12. Notebooks (Google Colab)
 
 The training notebooks run in Google Colab (GPU required for training, ~30 min per full run). They are not meant to run locally.
 
@@ -312,7 +334,7 @@ After training, download the output files and place them in:
 
 ---
 
-## 12. Common Issues
+## 13. Common Issues
 
 **Port 9200 or 5601 already in use**
 
@@ -340,7 +362,7 @@ The `lstm-serving` container is not running or not yet healthy. Run `docker comp
 
 ---
 
-## 13. Getting Help
+## 14. Getting Help
 
 - **Architecture questions** → read [docs/architecture.md](docs/architecture.md)
 - **Task status** → read [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md)
