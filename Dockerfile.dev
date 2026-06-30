@@ -35,6 +35,7 @@ RUN pip install --no-cache-dir \
     pandas==2.2.2 \
     scikit-learn==1.5.0 \
     tzdata==2024.1 \
+    elasticsearch==8.11.0 \
     mypy==1.10.0 \
     flake8==7.0.0 \
     "types-requests==2.32.0.20240602"

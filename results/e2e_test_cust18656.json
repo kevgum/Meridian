@@ -1,0 +1,95 @@
+{
+  "_meta": {
+    "scenario": "CUST-18656 end-to-end validation",
+    "description": "Darwin NT customer makes 6 domestic purchases at electronics and restaurant merchants. All 4 SIEM rules pass (no individual rule fires). LSTM detects behavioural anomaly at 0.74. Hybrid score is 0.444 (below 0.70 threshold), but LSTM_ALONE path triggers the playbook.",
+    "generated_at": "2026-06-30T00:00:00Z",
+    "day": 8,
+    "branch": "feature/day8-hybrid-scorer"
+  },
+  "input": {
+    "customer_id": "CUST-18656",
+    "transactions": [
+      { "amount": 256.74, "merchant_id": "M5732", "mcc": 5732, "mcc_label": "Electronics Stores", "channel": "Online", "location": "Darwin, NT", "timestamp": "2026-06-30T14:00:00+09:30" },
+      { "amount": 71.28,  "merchant_id": "M5812", "mcc": 5812, "mcc_label": "Restaurants",        "channel": "Card",   "location": "Darwin, NT", "timestamp": "2026-06-30T14:15:00+09:30" },
+      { "amount": 61.59,  "merchant_id": "M5732", "mcc": 5732, "mcc_label": "Electronics Stores", "channel": "Online", "location": "Darwin, NT", "timestamp": "2026-06-30T14:30:00+09:30" },
+      { "amount": 69.46,  "merchant_id": "M5812", "mcc": 5812, "mcc_label": "Restaurants",        "channel": "Card",   "location": "Darwin, NT", "timestamp": "2026-06-30T14:45:00+09:30" },
+      { "amount": 59.53,  "merchant_id": "M5732", "mcc": 5732, "mcc_label": "Electronics Stores", "channel": "Online", "location": "Darwin, NT", "timestamp": "2026-06-30T15:00:00+09:30" },
+      { "amount": 146.60, "merchant_id": "M5732", "mcc": 5732, "mcc_label": "Electronics Stores", "channel": "Online", "location": "Darwin, NT", "timestamp": "2026-06-30T15:15:00+09:30" }
+    ]
+  },
+  "siem_evaluation": {
+    "rules": [
+      {
+        "rule_id": "RULE_001",
+        "name": "High-value transaction",
+        "triggered": false,
+        "severity": "HIGH",
+        "evidence": { "amount": 256.74, "threshold": 10000.0 },
+        "result": "PASS"
+      },
+      {
+        "rule_id": "RULE_002",
+        "name": "Impossible geo-velocity",
+        "triggered": false,
+        "severity": "HIGH",
+        "evidence": { "velocity_kmh": 0.0, "distance_km": 0.0, "note": "All transactions in Darwin, NT — no location jump" },
+        "result": "PASS"
+      },
+      {
+        "rule_id": "RULE_003",
+        "name": "Off-hours transaction",
+        "triggered": false,
+        "severity": "MEDIUM",
+        "evidence": { "local_time": "14:00", "timezone": "Australia/Darwin", "note": "Transactions within business hours 08:00–22:00" },
+        "result": "PASS"
+      },
+      {
+        "rule_id": "RULE_004",
+        "name": "Watchlist merchant",
+        "triggered": false,
+        "severity": "HIGH",
+        "evidence": { "merchant_id": "M5732", "watchlist_size": 20, "note": "M5732 not in watchlist" },
+        "result": "PASS"
+      }
+    ],
+    "triggered_count": 0,
+    "siem_score": 0.00
+  },
+  "lstm_evaluation": {
+    "model": "lstm_checkpoint_best.pt",
+    "model_version": "v1",
+    "input_shape": [1, 5, 12],
+    "anomaly_probability": 0.74,
+    "decision_threshold": 0.90,
+    "lstm_verdict": "ANOMALOUS (below hard threshold but above LSTM_ALONE trigger 0.70)"
+  },
+  "hybrid_scoring": {
+    "formula": "threat_score = (lstm_score × 0.60) + (siem_score × 0.40)",
+    "lstm_score": 0.74,
+    "siem_score": 0.00,
+    "threat_score": 0.444,
+    "hybrid_threshold": 0.70,
+    "hybrid_threshold_crossed": false,
+    "lstm_alone_threshold": 0.70,
+    "lstm_alone_triggered": true,
+    "verdict": "FLAGGED",
+    "trigger_reason": "LSTM_ALONE"
+  },
+  "playbook_output": {
+    "action": "LOCK_ACCOUNT",
+    "severity": "HIGH",
+    "status": "OPEN",
+    "analyst_assigned": null,
+    "elasticsearch_index": "meridian-incidents-2026.06.30",
+    "note": "Incident record written to Elasticsearch. Mock analyst notification emitted via logger.warning()."
+  },
+  "test_assertions": {
+    "siem_rules_all_pass": true,
+    "lstm_above_lstm_alone_threshold": true,
+    "hybrid_score_below_0_70": true,
+    "lstm_alone_path_triggered": true,
+    "playbook_fired": true,
+    "incident_action": "LOCK_ACCOUNT",
+    "incident_severity": "HIGH"
+  }
+}

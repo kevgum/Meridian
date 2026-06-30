@@ -19,7 +19,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## 🏃 IN PROGRESS
 
-*(Empty — Day 7 complete, Day 8 not yet started)*
+*(Empty — Day 8 complete)*
 
 ---
 
@@ -62,3 +62,10 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `watchlist/merchants.json` — 20 seed known-bad merchant IDs
   - [x] `logstash/pipelines/transaction_ingest.conf` — full ECS pipeline with SHA-256 PII hashing
   - [x] `tests/test_siem_rules.py` — 22/22 unit tests passing (no container required)
+
+- [x] **US-06:** Automated playbooks — Day 8
+  - [x] `src/siem/hybrid_scorer.py` — HybridThreatScorer with dual-threshold logic (HYBRID_THRESHOLD + LSTM_ALONE)
+  - [x] `src/siem/playbook_engine.py` — PlaybookEngine: ES incident write, mock analyst notification, injected ES client for testability
+  - [x] `tests/test_hybrid_scorer.py` — 29/29 unit tests passing (mocked ES, no container required)
+  - [x] `results/e2e_test_cust18656.json` — CUST-18656 validation scenario documented
+  - [x] Full suite: 60/60 tests passing (all days combined)

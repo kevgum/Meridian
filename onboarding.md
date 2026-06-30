@@ -176,22 +176,28 @@ Run the full test suite inside Docker — no local Python required:
 docker compose --profile dev run --rm dev pytest tests/ -v
 ```
 
-All 29 tests must pass:
+All 60 tests must pass:
 ```
-tests/test_inference_api.py::test_health_check                   PASSED
-tests/test_inference_api.py::test_clean_transaction_low_score    PASSED
+tests/test_inference_api.py::test_health_check                                        PASSED
 ... (7 LSTM API tests)
-tests/test_siem_rules.py::TestRuleHighValue::test_triggers_above_threshold  PASSED
+tests/test_pipeline.py::test_pii_obfuscation                                          PASSED
+tests/test_pipeline.py::test_feature_engineering_shapes_and_values                    PASSED
+tests/test_siem_rules.py::TestRuleHighValue::test_triggers_above_threshold            PASSED
 ... (22 SIEM rule tests)
-29 passed
+tests/test_hybrid_scorer.py::TestHybridFormula::test_formula_correct_mixed_scores     PASSED
+... (29 hybrid scorer + playbook tests)
+60 passed
 ```
 
 To run only one suite:
 ```bash
-# LSTM API tests (requires lstm-serving to be running)
+# LSTM API tests (requires lstm-serving)
 docker compose --profile dev run --rm dev pytest tests/test_inference_api.py -v
 
-# SIEM rule tests (no running services needed)
+# Hybrid scorer + playbook tests (no services needed)
+docker compose --profile dev run --rm dev pytest tests/test_hybrid_scorer.py -v
+
+# SIEM rule tests (no services needed)
 docker compose --profile dev run --rm dev pytest tests/test_siem_rules.py -v
 ```
 
@@ -305,7 +311,7 @@ These decisions are final — do not re-open them without talking to the team:
 | 5 | Evaluation (threshold tuning + ONNX export) | ✅ Done |
 | 6 | ONNX Runtime + FastAPI serving (Docker) | ✅ Done — 7/7 tests pass, p99=28.5ms |
 | 7 | Elastic SIEM + rule engine | ✅ Done — 22/22 tests pass, ECS Logstash pipeline live |
-| 8 | Hybrid threat scorer + playbook engine | ⬜ Not started |
+| 8 | Hybrid threat scorer + playbook engine | ✅ Done — 29/29 tests pass, dual-threshold logic, CUST-18656 validated |
 | 9 | RBAC + compliance mapping | ⬜ Not started |
 | 10–11 | React analyst dashboard | ⬜ Not started |
 | 12 | Acceptance test suite (AT-1 through AT-10) | ⬜ Not started |

@@ -31,19 +31,19 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 
 ---
 
-## Current State (as of Day 7 complete)
+## Current State (as of Day 8 complete)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | LSTM model | ✅ Trained + committed | 98.4% acc, 1.54% FPR at threshold=0.90 |
 | ONNX serving (FastAPI) | ✅ Running | p99=28.5ms, 7/7 smoke tests pass |
 | Elastic SIEM stack | ✅ Done | Rule engine live, ECS Logstash pipeline, 22/22 tests pass |
-| Hybrid scorer | ⬜ Not started | Day 8 |
-| Playbook engine | ⬜ Not started | Day 8 |
+| Hybrid scorer | ✅ Done | Dual-threshold logic, 60/60 tests pass |
+| Playbook engine | ✅ Done | ES write + mock analyst notification, injected ES client |
 | React dashboard | ⬜ Not started | Days 10–11 |
 | Acceptance tests | ⬜ Not started | Day 12 |
 
-Active branch: `feature/day7-siem-rules`  
+Active branch: `feature/day8-hybrid-scorer`  
 Main branch: `main`
 
 ---
@@ -181,8 +181,11 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | [docs/colab-guide.md](docs/colab-guide.md) | Step-by-step Colab training + download instructions |
 | [compliance/control_mapping.md](compliance/control_mapping.md) | APRA CPS 234, PCI DSS v4.0, Privacy Act control mapping with status |
 | [src/siem/rule_engine.py](src/siem/rule_engine.py) | ElasticSIEMCorrelator — 4 SIEM rules + score normalisation |
+| [src/siem/hybrid_scorer.py](src/siem/hybrid_scorer.py) | HybridThreatScorer — blends LSTM + SIEM, dual-threshold verdict |
+| [src/siem/playbook_engine.py](src/siem/playbook_engine.py) | PlaybookEngine — incident record, ES write, mock analyst notification |
 | [watchlist/merchants.json](watchlist/merchants.json) | Known-bad merchant IDs (Rule 4 seed data, 20 entries) |
 | [logstash/pipelines/transaction_ingest.conf](logstash/pipelines/transaction_ingest.conf) | Full ECS pipeline — SHA-256 PII hash, field mapping, ES output |
+| [results/e2e_test_cust18656.json](results/e2e_test_cust18656.json) | CUST-18656 end-to-end validation output (Day 8) |
 
 ---
 
@@ -196,6 +199,7 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | pos_weight | 1.0 (WeightedRandomSampler handles class balance) |
 | LSTM weights | `lstm_checkpoint_best.pt` (best val_acc checkpoint, not final epoch) |
 | Hybrid threshold | 0.70 |
+| LSTM_ALONE trigger | lstm_score >= 0.70 fires playbook even with siem_score=0 (covers CUST-18656 scenario) |
 
 ---
 
@@ -210,14 +214,17 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 ## Test Commands
 
 ```bash
-# LSTM API smoke tests (container must be running on :8080)
-python -m pytest tests/test_inference_api.py -v
+# Full test suite (all 60 tests — requires lstm-serving healthy)
+docker compose --profile dev run --rm dev pytest tests/ -v
 
-# SIEM rule engine tests (no container required — pure unit tests)
-python -m pytest tests/test_siem_rules.py -v
+# Day 8 unit tests only (no services required — mocked ES)
+docker compose --profile dev run --rm dev pytest tests/test_hybrid_scorer.py -v
 
-# All tests
-python -m pytest tests/ -v
+# SIEM rule engine tests (no services required)
+docker compose --profile dev run --rm dev pytest tests/test_siem_rules.py -v
+
+# LSTM API smoke tests (lstm-serving must be running)
+docker compose --profile dev run --rm dev pytest tests/test_inference_api.py -v
 
 # Latency benchmark (100 calls → results/latency_benchmark.json)
 python -m src.benchmark
