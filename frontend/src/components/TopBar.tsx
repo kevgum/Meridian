@@ -1,8 +1,9 @@
-import { Shield, Activity, AlertTriangle, TrendingDown, User } from 'lucide-react';
+import { Shield, Activity, AlertTriangle, TrendingDown, User, Wifi, WifiOff } from 'lucide-react';
 import type { KPIStats } from '../types';
 
 interface Props {
   stats: KPIStats;
+  isLive: boolean;
 }
 
 interface KPITileProps {
@@ -34,7 +35,7 @@ function KPITile({ label, value, sub, icon, highlight }: KPITileProps) {
   );
 }
 
-export default function TopBar({ stats }: Props) {
+export default function TopBar({ stats, isLive }: Props) {
   const now = new Date().toLocaleTimeString('en-AU', {
     hour: '2-digit',
     minute: '2-digit',
@@ -82,16 +83,29 @@ export default function TopBar({ stats }: Props) {
         />
       </div>
 
-      {/* Analyst */}
-      <div className="flex items-center gap-2 shrink-0 text-right">
-        <div>
+      {/* LIVE / DEMO indicator + analyst */}
+      <div className="flex items-center gap-3 shrink-0">
+        <div
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
+            isLive
+              ? 'bg-green-900/40 border-green-600/50 text-green-400'
+              : 'bg-slate-700/60 border-slate-600/50 text-slate-400'
+          }`}
+          aria-label={isLive ? 'Connected to live Elasticsearch' : 'Demo mode — using mock data'}
+          title={isLive ? 'Connected to live Elasticsearch' : 'Demo mode — mock data'}
+        >
+          {isLive ? <Wifi size={11} aria-hidden="true" /> : <WifiOff size={11} aria-hidden="true" />}
+          {isLive ? 'LIVE' : 'DEMO'}
+        </div>
+
+        <div className="text-right">
           <p className="text-xs text-slate-400 leading-none">Analyst</p>
           <p className="text-sm font-semibold text-slate-100 leading-tight">
             {stats.analystName}
           </p>
           <p className="text-xs text-slate-500 leading-none mt-0.5 font-mono">{now}</p>
         </div>
-        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center" aria-hidden="true">
           <User size={14} className="text-white" />
         </div>
       </div>

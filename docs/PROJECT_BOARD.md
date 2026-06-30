@@ -70,6 +70,23 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `results/e2e_test_cust18656.json` — CUST-18656 validation scenario documented
   - [x] Full suite: 60/60 tests passing (all days combined)
 
+- [x] **US-07:** React SOC Dashboard — Day 11 (accessibility + live polling)
+  - [x] `useElasticPolling.ts` — polls ES every 5s in dev via Vite proxy; graceful mock fallback on Vercel
+  - [x] `useIdleTimer.ts` — 14-min warn / 15-min logout; monitors 5 activity event types
+  - [x] `useA11yAnnouncer.ts` — visually-hidden `aria-live="polite"` region for screen reader announcements
+  - [x] `SessionWarningModal.tsx` — 60-second countdown, focus trap, Escape dismisses
+  - [x] `InvestigateDrawer.tsx` — slide-in right drawer, transaction timeline table, hybrid score breakdown, focus trap
+  - [x] `Toast.tsx` — 4-second auto-dismiss, `role="alert"`, `aria-live="assertive"`
+  - [x] LIVE/DEMO indicator in TopBar (green Wifi = ES connected, grey WifiOff = mock)
+  - [x] Confirm Threat button — POST to ES audit index; optimistic UI update + toast on success or fallback
+  - [x] Investigate button — opens InvestigateDrawer
+  - [x] Vite proxy: `/api/*` → `localhost:9200/*` in dev
+  - [x] `index.html` — skip-to-content link, `<title>` updated
+  - [x] TransactionFeed — `role="list/listitem"`, `tabIndex={0}`, LSTM bar has `role="progressbar"`
+  - [x] `docs/accessibility-audit.md` — full WCAG 2.2 AA checklist, contrast ratios, session security
+  - [x] Build passes: zero TypeScript errors
+  - [x] Re-deployed to Vercel
+
 - [x] **US-07:** React SOC Dashboard — Day 10 (mock data phase)
   - [x] Vite + React + TypeScript scaffolded in `frontend/`
   - [x] Tailwind CSS v4 configured (`@tailwindcss/vite` plugin)

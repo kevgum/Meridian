@@ -42,11 +42,19 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 | Playbook engine | ✅ Done | ES write + mock analyst notification, injected ES client |
 | RBAC | ✅ Done | 6 roles, bootstrap script, AT-9 integration tests |
 | React dashboard (Day 10) | ✅ Done | Vite+TS, 6 components, mock data, Vercel-ready |
-| React dashboard (Day 11) | ⬜ Not started | Live ES polling, accessibility, re-deploy |
+| React dashboard (Day 11) | ✅ Done | Live ES polling, WCAG 2.2 AA, session timeout, drawer, re-deployed |
 | Acceptance tests | ⬜ Not started | Day 12 |
 
 Active branch: `feature/day10-dashboard`  
 Main branch: `main`
+
+---
+
+## Current State (as of Day 11 complete)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| React dashboard (Day 11) | ✅ Done | 3 hooks, 3 new components, WCAG 2.2 AA audit pass |
 
 ---
 
