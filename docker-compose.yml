@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     environment:
@@ -11,6 +12,11 @@ services:
       - "9200:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -u elastic:${ELASTIC_PASSWORD:-meridian123} http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\\|yellow\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.11.0
@@ -18,20 +24,57 @@ services:
       - "5601:5601"
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
       - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:-meridian123}
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
 
   logstash:
     image: docker.elastic.co/logstash/logstash:8.11.0
     ports:
       - "5000:5000"
     volumes:
-      - ./siem/logstash_config.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logstash/pipelines/transaction_ingest.conf:/usr/share/logstash/pipeline/logstash.conf
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-meridian123}
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
 
-  # feature-engineering-service and lstm-serving to be added later
+  lstm-serving:
+    build:
+      context: .
+      dockerfile: Dockerfile.serving
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models/serving/lstm_v1:/models:ro
+    environment:
+      - MODEL_PATH=/models/lstm_fraud_detector.onnx
+      - DECISION_THRESHOLD=${DECISION_THRESHOLD:-0.90}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/v1/models/lstm')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  feature-engineering:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-meridian123}
+      - LSTM_SERVING_URL=http://lstm-serving:8080
+    command: >
+      sh -c "pip install -q elasticsearch pandas numpy scikit-learn pyyaml requests &&
+             python -m src.pipeline.run_pipeline --mock"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      lstm-serving:
+        condition: service_healthy
 
 volumes:
   es_data:

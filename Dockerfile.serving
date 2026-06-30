@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir \
+    fastapi==0.111.0 \
+    uvicorn[standard]==0.29.0 \
+    onnxruntime==1.18.0 \
+    numpy==1.26.4 \
+    pydantic==2.7.1
+
+COPY src/serving/app.py /app/app.py
+
+# Model is mounted at runtime via docker-compose volume:
+#   ./models/serving/lstm_v1:/models
+ENV MODEL_PATH=/models/lstm_fraud_detector.onnx
+ENV DECISION_THRESHOLD=0.90
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/v1/models/lstm')"
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
