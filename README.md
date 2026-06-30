@@ -36,92 +36,68 @@ docker compose version
 
 ---
 
-## Quick Start (5 steps)
+## Quick Start — one command
 
-### 1. Clone the repository
+The entire stack runs in Docker. **No local Python installation required.**
 
 ```bash
 git clone https://github.com/owenz4040/Meridaian.git
 cd Meridaian
 ```
 
-### 2. Create your environment file
+**Windows (PowerShell):**
+```powershell
+.\start.ps1
+```
+
+**Mac / Linux:**
+```bash
+chmod +x start.sh && ./start.sh
+```
+
+The script handles everything:
+1. Creates `.env` from `.env.example`
+2. Creates the required `models/serving/lstm_v1/` output directory
+3. Builds all Docker images (3–5 min on first run — downloads PyTorch CPU)
+4. Starts Elasticsearch, Kibana, Logstash, and the LSTM serving container
+5. Waits for all services to be healthy
+6. Runs the full test suite inside Docker (29 tests — no local Python needed)
+7. Prints service URLs
+
+Expected final output:
+```
+  OK All tests passed
+
+  LSTM Inference API  ->  http://localhost:8080/v1/models/lstm
+  Kibana              ->  http://localhost:5601  (elastic / meridian123)
+  Elasticsearch       ->  http://localhost:9200
+  Logstash TCP        ->  localhost:5000
+```
+
+---
+
+## Running Tests and Tools Without the Startup Script
+
+All dev commands run inside the `dev` Docker container — no local Python needed:
 
 ```bash
-cp .env.example .env
-```
+# Full test suite (LSTM API + SIEM rule engine)
+docker compose --profile dev run --rm dev pytest tests/ -v
 
-The defaults in `.env.example` work for local development. No changes needed unless you are connecting to external services.
+# SIEM unit tests only (no running containers required)
+docker compose --profile dev run --rm dev pytest tests/test_siem_rules.py -v
 
-### 3. Build and start the LSTM serving container
+# LSTM API smoke tests only (lstm-serving must be running)
+docker compose --profile dev run --rm dev pytest tests/test_inference_api.py -v
 
-```bash
-docker compose build lstm-serving
-docker compose up -d lstm-serving
-```
+# Latency benchmark
+docker compose --profile dev run --rm dev python -m src.benchmark
 
-The first build downloads PyTorch CPU (~550 MB) — takes 3–5 minutes. Subsequent starts are instant.
+# Type checking
+docker compose --profile dev run --rm dev mypy src/
 
-At startup the container automatically converts `models/lstm_checkpoint_best.pt` → `models/serving/lstm_v1/lstm_fraud_detector.onnx` if the ONNX file is not already present.
-
-**Verify it is healthy:**
-```bash
-docker compose ps
-```
-
-Expected output:
-```
-NAME            STATUS
-lstm-serving    Up (healthy)
-```
-
-Or hit the health endpoint directly:
-```bash
-curl http://localhost:8080/v1/models/lstm
-```
-
-Expected response:
-```json
-{"status": "ok", "model": "lstm_fraud_detector", "threshold": 0.9}
-```
-
-### 4. Start the full Elastic SIEM stack
-
-```bash
-docker compose up -d elasticsearch kibana logstash
-```
-
-Elasticsearch takes about 30–60 seconds to become healthy. Check:
-```bash
-docker compose ps
-```
-
-Services and their URLs:
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Elasticsearch | http://localhost:9200 | elastic / meridian123 |
-| Kibana | http://localhost:5601 | elastic / meridian123 |
-| LSTM Inference API | http://localhost:8080 | — |
-| Logstash (TCP input) | localhost:5000 | — |
-
-### 5. Run smoke tests
-
-```bash
-pip install pytest requests numpy
-python -m pytest tests/test_inference_api.py -v
-```
-
-Expected output:
-```
-tests/test_inference_api.py::test_health_check                  PASSED
-tests/test_inference_api.py::test_clean_transaction_low_score   PASSED
-tests/test_inference_api.py::test_fraud_pattern_returns_valid_probability PASSED
-tests/test_inference_api.py::test_single_sequence_shape         PASSED
-tests/test_inference_api.py::test_batch_predict                 PASSED
-tests/test_inference_api.py::test_invalid_shape_returns_422     PASSED
-tests/test_inference_api.py::test_inference_latency             PASSED
-7 passed in 9.50s
+# Linting
+docker compose --profile dev run --rm dev flake8 src/ tests/
 ```
 
 ---

@@ -69,11 +69,7 @@ docker --version        # should print Docker version 24.x or higher
 docker compose version  # should print Docker Compose version 2.x or higher
 ```
 
-### Python packages for local testing
-
-```bash
-pip install pytest requests numpy
-```
+**No local Python installation is required.** All tests and dev tools run inside a Docker container. If you want to run scripts outside Docker, install Python 3.11+ and run `pip install pytest requests numpy tzdata`.
 
 ---
 
@@ -112,89 +108,91 @@ The defaults work for local development without any changes. The `.env` file is 
 
 ## 6. Running the Stack
 
-### Step 1 — Build the LSTM serving container
+### One-command startup (recommended)
 
-This only needs to be done once (or when `Dockerfile.serving` changes):
+The startup scripts handle everything — no manual steps required.
+
+**Windows (PowerShell):**
+```powershell
+.\start.ps1
+```
+
+**Mac / Linux:**
 ```bash
-docker compose build lstm-serving
+chmod +x start.sh
+./start.sh
 ```
 
-Build takes 3–5 minutes on first run (downloads PyTorch CPU + ONNX Runtime). You will see progress output. Wait until you see `Successfully built`.
+What the script does, in order:
+1. Creates `.env` from `.env.example` if not present
+2. Creates the `models/serving/lstm_v1/` output directory
+3. Builds all Docker images (`lstm-serving` + `dev` toolbox)
+4. Starts Elasticsearch, Kibana, Logstash, and the LSTM API
+5. Polls until Elasticsearch and the LSTM API are healthy
+6. Runs all 29 tests inside the `dev` container — no local Python needed
+7. Prints service URLs
 
-### Step 2 — Start the LSTM API
+First run takes **5–8 minutes** (image downloads). Subsequent runs take **under 60 seconds**.
+
+Expected output when everything is working:
+```
+▶ Stack is up
+
+  LSTM Inference API  ->  http://localhost:8080/v1/models/lstm
+  Kibana              ->  http://localhost:5601  (elastic / meridian123)
+  Elasticsearch       ->  http://localhost:9200
+  Logstash TCP        ->  localhost:5000
+```
+
+### Manual startup (step by step)
+
+If you prefer to start services individually:
 
 ```bash
-docker compose up -d lstm-serving
-```
+# Step 1 — create environment and required directories
+cp .env.example .env
+mkdir -p models/serving/lstm_v1
 
-On first start, the container converts `models/lstm_checkpoint_best.pt` → `models/serving/lstm_v1/lstm_fraud_detector.onnx`. This takes ~15 seconds. You will see in the logs:
+# Step 2 — build images
+docker compose --profile dev build
 
-```
-ONNX exported: /models/lstm_fraud_detector.onnx  (482 KB)
-INFO: Uvicorn running on http://0.0.0.0:8080
-```
+# Step 3 — start all services
+docker compose up -d elasticsearch kibana logstash lstm-serving
 
-Check it is healthy:
-```bash
+# Step 4 — wait for healthy (check status)
 docker compose ps
-# lstm-serving should show: Up (healthy)
 
-curl http://localhost:8080/v1/models/lstm
-# Expected: {"status": "ok", "model": "lstm_fraud_detector", "threshold": 0.9}
+# Step 5 — open Kibana
+# Navigate to http://localhost:5601  (elastic / meridian123)
 ```
-
-### Step 3 — Start the Elastic SIEM stack
-
-```bash
-docker compose up -d elasticsearch kibana logstash
-```
-
-Elasticsearch takes 30–60 seconds to become healthy. Monitor it:
-```bash
-docker compose logs elasticsearch -f
-# Wait for: "Active license is now [BASIC]; Security is enabled"
-```
-
-### Step 4 — Verify all services
-
-```bash
-docker compose ps
-```
-
-All four containers should show `Up (healthy)` or `Up`:
-
-| Container | Port | Status |
-|-----------|------|--------|
-| lstm-serving | 8080 | `Up (healthy)` |
-| elasticsearch | 9200 | `Up (healthy)` |
-| kibana | 5601 | `Up` |
-| logstash | 5000 | `Up` |
-
-### Step 5 — Open Kibana
-
-Navigate to http://localhost:5601 in your browser.
-
-Login: `elastic` / `meridian123`
 
 ---
 
-## 7. Verify the LSTM API Works
+## 7. Verify Everything Works
 
-Run the smoke test suite:
+Run the full test suite inside Docker — no local Python required:
+
 ```bash
-python -m pytest tests/test_inference_api.py -v
+docker compose --profile dev run --rm dev pytest tests/ -v
 ```
 
-All 7 tests must pass:
+All 29 tests must pass:
 ```
-test_health_check                           PASSED
-test_clean_transaction_low_score            PASSED
-test_fraud_pattern_returns_valid_probability PASSED
-test_single_sequence_shape                  PASSED
-test_batch_predict                          PASSED
-test_invalid_shape_returns_422              PASSED
-test_inference_latency                      PASSED
-7 passed in ~9s
+tests/test_inference_api.py::test_health_check                   PASSED
+tests/test_inference_api.py::test_clean_transaction_low_score    PASSED
+... (7 LSTM API tests)
+tests/test_siem_rules.py::TestRuleHighValue::test_triggers_above_threshold  PASSED
+... (22 SIEM rule tests)
+29 passed
+```
+
+To run only one suite:
+```bash
+# LSTM API tests (requires lstm-serving to be running)
+docker compose --profile dev run --rm dev pytest tests/test_inference_api.py -v
+
+# SIEM rule tests (no running services needed)
+docker compose --profile dev run --rm dev pytest tests/test_siem_rules.py -v
 ```
 
 If any test fails, check container logs:

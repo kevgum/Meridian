@@ -1,0 +1,46 @@
+# =============================================================================
+# Dockerfile.dev — Meridian Sentinel developer / test runner image
+# =============================================================================
+# This image contains all test and linting tools.  Source code is NOT baked in —
+# it is mounted at runtime via docker-compose volume so code changes take effect
+# immediately without rebuilding.
+#
+# Usage (via start.sh / start.ps1 or directly):
+#   docker compose --profile dev run --rm dev pytest tests/ -v
+#   docker compose --profile dev run --rm dev python -m src.benchmark
+#   docker compose --profile dev run --rm dev flake8 src/ tests/
+#   docker compose --profile dev run --rm dev mypy src/
+# =============================================================================
+
+FROM python:3.11-slim
+
+# Install system tzdata so ZoneInfo("Australia/Sydney") resolves without
+# the Python tzdata package fallback.  The slim base image strips /usr/share/zoneinfo.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        tzdata \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install pinned dev/test dependencies.
+# requests and numpy are needed by the LSTM API smoke tests.
+# tzdata (pip) is a belt-and-suspenders fallback for any edge cases.
+RUN pip install --no-cache-dir \
+    pytest==8.2.0 \
+    pytest-timeout==2.3.1 \
+    requests==2.32.3 \
+    numpy==1.26.4 \
+    tzdata==2024.1 \
+    mypy==1.10.0 \
+    flake8==7.0.0 \
+    "types-requests==2.32.0.20240602"
+
+# Make src/ importable as a package (e.g. from src.siem.rule_engine import ...)
+ENV PYTHONPATH=/app
+
+# Default command: run the full test suite.
+# Override by appending a command to docker compose run:
+#   docker compose --profile dev run --rm dev pytest tests/test_siem_rules.py -v
+CMD ["pytest", "tests/", "-v"]
