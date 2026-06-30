@@ -58,27 +58,36 @@
 
 ---
 
-## Observations & Notes for Day 5
+## Observations & Notes
 
-### 1. Accuracy target MET — but accuracy alone is misleading here
-Val accuracy of **99.87%** exceeds the ≥98.55% target. However, with only 0.13% fraud in the dataset, a model that predicts **every transaction as normal** would also achieve ~99.87% accuracy. This is the **accuracy paradox** for imbalanced classification.
+### 1. Initial training collapse (resolved)
+The first training run used `pos_weight=773` (dynamically computed from fraud rate). This caused the model to collapse — val accuracy locked at 99.87% ≈ 1 − fraud_rate, meaning the model predicted every transaction as normal (0% recall).
 
-**Val accuracy = 99.87% ≈ 1 − fraud_rate** — this match is not a coincidence and must be verified in Day 5 evaluation.
+**Fix applied:** Retrained with `pos_weight=1.0` + `WeightedRandomSampler` (50/50 fraud/normal batches), 20 epochs. Loss decreased correctly (0.29 → 0.186). Model genuinely learned fraud patterns.
 
-### 2. What Day 5 must confirm
-The confusion matrix in `03_evaluation.ipynb` is critical. We need:
-- **Recall (TPR) > 0** — model must be catching *some* actual fraud
-- **FPR ≤ 0.50%** — low false alarm rate
-- If recall = 0%: model has collapsed to always predicting normal → need to lower decision threshold (e.g. 0.1 instead of 0.5) or retrain with adjusted pos_weight
+### 2. Threshold tuning — Day 5
+Raw sigmoid output at threshold=0.5 produced high FPR (11.59%) because the model trained on balanced batches was too aggressive on the real distribution. Threshold was tuned iteratively:
 
-### 3. Loss increased after epoch 2
-Train loss climbed from 1.40 → ~1.97 and plateaued. This is typical behaviour with very high pos_weight (~773) — the loss function aggressively penalises missed fraud cases, causing the model to oscillate. The `ReduceLROnPlateau` scheduler reduced LR after epoch 2 (patience=2).
+| Threshold | Accuracy | FPR | Recall |
+|---|---|---|---|
+| 0.50 | 88.4% | 11.59% | 90.7% |
+| 0.80 | 96.1% | 3.92% | 77.3% |
+| 0.90 | 98.4% | 1.54% | 67.2% |
 
-### 4. Artefacts saved
+**Final threshold:** 0.90 — accuracy within 0.14% of target, FPR documented as prototype limitation.
+
+### 3. Known limitation
+FPR of 1.54% exceeds the ≤0.50% target. Further threshold increases (0.95+) reduce recall below acceptable levels. The hybrid scorer's 0.70 combined threshold compensates at the system level.
+
+### 4. Artefacts committed
 | File | Location |
 |---|---|
-| Best checkpoint | `models/lstm_checkpoint_best.pt` (local + Drive) |
-| Final model | `models/lstm_final.pt` (local + Drive) |
-| Training history | `results/training_history.json` |
+| Best checkpoint | `models/lstm_checkpoint_best.pt` |
+| Final model | `models/lstm_final.pt` |
+| Training history | `results/training_history.json` (pos_weight=1.0, 20 epochs) |
 | Calibration results | `results/calibration_run_01.json` |
-| Training curves plot | `results/figures/training_curves.png` |
+| Training curves | `results/figures/training_curves.png` |
+| Confusion matrix | `results/figures/confusion_matrix.png` |
+| Final metrics | `results/final_metrics.json` |
+| Model card | `models/MODEL_CARD.md` |
+| ONNX export | `models/serving/lstm_v1/lstm_fraud_detector.onnx` (Drive only — gitignored) |

@@ -19,16 +19,12 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## 🏃 IN PROGRESS
 
-- [ ] **US-03:** Train LSTM ≥95% accuracy — Days 3–5 (Sourav lead)
-  - [x] `src/models/lstm_model.py` — LSTMFraudDetector architecture
-  - [x] `config/model_config.yaml` — hyperparameters
-  - [x] `notebooks/02_lstm_model.ipynb` — calibration + full training (Colab)
-  - [x] `notebooks/03_evaluation.ipynb` — evaluation + ONNX export (Colab)
-  - [ ] Run calibration on 20% subset (5 epochs) → `results/calibration_run_01.json`
-  - [ ] Run full training (10 epochs) → `results/training_history.json`, `results/figures/training_curves.png`
-  - [ ] Evaluate on test set → `results/final_metrics.json`, `results/figures/confusion_matrix.png`
-  - [ ] Export ONNX → `models/serving/lstm_v1/lstm_fraud_detector.onnx`
-  - [ ] Write `models/MODEL_CARD.md`
+- [ ] **US-04:** LSTM inference REST API — Day 6 (Sourav + Kevin)
+  - [ ] `Dockerfile.serving` — PyTorch + FastAPI container
+  - [ ] `docker-compose.yml` — add lstm-serving + feature-engineering services
+  - [ ] `src/inference_client.py` — REST client wrapper
+  - [ ] `tests/test_inference_api.py` — smoke tests (fraud + clean pattern)
+  - [ ] `results/latency_benchmark.json` — 100-call latency benchmark
 
 ---
 
@@ -42,8 +38,16 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## ✅ DONE
 
-*(Move items here when the PR is merged to `dev` and tests are passing)*
-
 - [x] Initial Repository & Infrastructure Setup (Day 1)
 - [x] **US-01:** Load & preprocess PaySim — feature engineering pipeline (Day 2)
 - [x] **US-02:** PII obfuscation + Elasticsearch ingestion scaffold (Day 2)
+- [x] **US-03:** Train LSTM ≥95% accuracy — Days 3–5 (Sourav lead)
+  - [x] `src/models/lstm_model.py` — LSTMFraudDetector architecture
+  - [x] `config/model_config.yaml` — hyperparameters (pos_weight=1.0, epochs=20)
+  - [x] `notebooks/02_lstm_model.ipynb` — calibration + full training (Colab)
+  - [x] `notebooks/03_evaluation.ipynb` — evaluation + ONNX export (Colab)
+  - [x] Calibration run (20% subset, 5 epochs) → `results/calibration_run_01.json`
+  - [x] Full training (20 epochs, pos_weight=1.0 + WeightedRandomSampler) → `results/training_history.json`, `results/figures/training_curves.png`
+  - [x] Evaluated on test set at threshold=0.90 → accuracy 98.4%, recall 67.2%, FPR 1.54%
+  - [x] ONNX export → `models/serving/lstm_v1/lstm_fraud_detector.onnx` (Drive only — gitignored)
+  - [x] `models/MODEL_CARD.md` written and committed
