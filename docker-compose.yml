@@ -24,6 +24,10 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - ELASTICSEARCH_USERNAME=elastic
       - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:-meridian123}
+      # PCI DSS Req 8.2.8 — idle session timeout: 15 minutes
+      - xpack.security.session.idleTimeout=15m
+      # Maximum session lifetime regardless of activity: 24 hours
+      - xpack.security.session.lifespan=24h
     depends_on:
       elasticsearch:
         condition: service_healthy

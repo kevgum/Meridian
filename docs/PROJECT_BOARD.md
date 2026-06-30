@@ -19,7 +19,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## 🏃 IN PROGRESS
 
-*(Empty — Day 8 complete)*
+*(Empty — Day 9 complete)*
 
 ---
 
@@ -69,3 +69,14 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `tests/test_hybrid_scorer.py` — 29/29 unit tests passing (mocked ES, no container required)
   - [x] `results/e2e_test_cust18656.json` — CUST-18656 validation scenario documented
   - [x] Full suite: 60/60 tests passing (all days combined)
+
+- [x] **US-11:** RBAC — Day 9
+  - [x] `scripts/bootstrap_rbac.py` — creates 6 ES roles + 6 test users + scoped API key via elasticsearch-py; idempotent
+  - [x] `tests/test_rbac.py` — 5 integration tests covering AT-9: analyst denied .kibana write, compliance officer read-only, engineer allowed
+  - [x] `pytest.ini` — registers `integration` marker so RBAC tests are excluded from default unit-test run
+  - [x] `docker-compose.yml` — Kibana session timeout 15 min (`xpack.security.session.idleTimeout=15m`)
+  - [x] `scripts/generate_certs.sh` — self-signed TLS cert generation script (production hardening; not enforced in prototype)
+  - [x] `.env.example` — added `ELASTIC_HOST` and `ELASTIC_API_KEY` variables
+  - [x] `certs/.gitkeep` — tracks directory; private keys gitignored
+  - [x] `docs/requirements_traceability_matrix.md` — US-01–US-11 → AT-1–AT-10 with gap analysis
+  - [x] `compliance/control_mapping.md` — RBAC, session timeout, incident management, audit rows updated to ✅

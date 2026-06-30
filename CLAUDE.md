@@ -31,7 +31,7 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 
 ---
 
-## Current State (as of Day 8 complete)
+## Current State (as of Day 9 complete)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
@@ -40,10 +40,11 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 | Elastic SIEM stack | ✅ Done | Rule engine live, ECS Logstash pipeline, 22/22 tests pass |
 | Hybrid scorer | ✅ Done | Dual-threshold logic, 60/60 tests pass |
 | Playbook engine | ✅ Done | ES write + mock analyst notification, injected ES client |
+| RBAC | ✅ Done | 6 roles, bootstrap script, AT-9 integration tests |
 | React dashboard | ⬜ Not started | Days 10–11 |
 | Acceptance tests | ⬜ Not started | Day 12 |
 
-Active branch: `feature/day8-hybrid-scorer`  
+Active branch: `feature/day9-rbac-security`  
 Main branch: `main`
 
 ---
@@ -186,6 +187,10 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | [watchlist/merchants.json](watchlist/merchants.json) | Known-bad merchant IDs (Rule 4 seed data, 20 entries) |
 | [logstash/pipelines/transaction_ingest.conf](logstash/pipelines/transaction_ingest.conf) | Full ECS pipeline — SHA-256 PII hash, field mapping, ES output |
 | [results/e2e_test_cust18656.json](results/e2e_test_cust18656.json) | CUST-18656 end-to-end validation output (Day 8) |
+| [scripts/bootstrap_rbac.py](scripts/bootstrap_rbac.py) | Creates 6 ES roles + test users + API key — run once after stack starts |
+| [scripts/generate_certs.sh](scripts/generate_certs.sh) | Self-signed TLS cert generation for Elasticsearch (production hardening) |
+| [tests/test_rbac.py](tests/test_rbac.py) | RBAC integration tests — AT-9 coverage (requires live ES) |
+| [docs/requirements_traceability_matrix.md](docs/requirements_traceability_matrix.md) | US-01–US-11 → AT-1–AT-10 traceability matrix |
 
 ---
 
@@ -200,6 +205,8 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | LSTM weights | `lstm_checkpoint_best.pt` (best val_acc checkpoint, not final epoch) |
 | Hybrid threshold | 0.70 |
 | LSTM_ALONE trigger | lstm_score >= 0.70 fires playbook even with siem_score=0 (covers CUST-18656 scenario) |
+| RBAC approach | bootstrap_rbac.py creates roles via ES API (not Kibana UI) — reproducible and version-controlled |
+| TLS enforcement | TLS 1.3 config + cert script provided; not enforced in Docker prototype (would require updating all service URLs and healthchecks) |
 
 ---
 

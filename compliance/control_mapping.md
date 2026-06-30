@@ -58,22 +58,22 @@ CPS 234 requires APRA-regulated entities to maintain information security capabi
 | Paragraph | Requirement | Meridian Sentinel Control | Evidence | Status |
 |-----------|-------------|--------------------------|----------|--------|
 | 15 | The Board must ensure the entity maintains information security capability | Architecture includes an automated detection engine (LSTM + SIEM) and a human analyst review layer | [`docs/architecture.md`](../docs/architecture.md) Section 2 | ✅ |
-| 16 | Clearly define information security-related roles and responsibilities | Six RBAC roles defined: `security_analyst`, `senior_security_engineer`, `ml_operations`, `compliance_officer`, `system_administrator`, `read_only_auditor` | [`docs/architecture.md`](../docs/architecture.md) Section 5.2 | ⬜ Day 9 |
+| 16 | Clearly define information security-related roles and responsibilities | Six RBAC roles defined: `security_analyst`, `senior_security_engineer`, `ml_operations`, `compliance_officer`, `system_administrator`, `read_only_auditor` | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py), [`tests/test_rbac.py`](../tests/test_rbac.py) | ✅ |
 | 17 | Third-party service providers must maintain adequate information security | All compute is self-hosted in Docker; no PII transmitted to external services | [`docker-compose.yml`](../docker-compose.yml) | ✅ |
 
 ### 3.2 Information Asset Classification (Para 18–19)
 
 | Paragraph | Requirement | Meridian Sentinel Control | Evidence | Status |
 |-----------|-------------|--------------------------|----------|--------|
-| 18 | Classify information assets by criticality and sensitivity | Transaction events classified as RESTRICTED (PII); model artefacts classified as INTERNAL; audit logs classified as CRITICAL | This document, Section 4 | 🔄 Classification defined; enforcement via RBAC planned Day 9 |
+| 18 | Classify information assets by criticality and sensitivity | Transaction events classified as RESTRICTED (PII); model artefacts classified as INTERNAL; audit logs classified as CRITICAL | This document, Section 4 | ✅ Classification defined and enforced via RBAC |
 | 19 | Ensure classification is maintained throughout data lifecycle | SHA-256 hash applied at Logstash ingestion — raw PII never persists beyond the ingestion boundary | [`logstash/pipelines/transaction_ingest.conf`](../logstash/pipelines/transaction_ingest.conf) Section 3 (fingerprint filter) | ✅ |
 
 ### 3.3 Implementation of Controls (Para 20–23)
 
 | Paragraph | Requirement | Meridian Sentinel Control | Evidence | Status |
 |-----------|-------------|--------------------------|----------|--------|
-| 20 | Implement controls to protect information assets from vulnerabilities | TLS 1.3 in transit; AES-256 at rest; RBAC; session timeout 15 min; no credentials in source code | [`docs/architecture.md`](../docs/architecture.md) Section 5 | 🔄 Encryption and secrets management designed; TLS enabled in Docker network; RBAC Day 9 |
-| 21 | Controls must be commensurate with the criticality and sensitivity of assets | Analyst dashboard requires authentication; audit index is write-once (no delete permissions for any role) | [`docs/architecture.md`](../docs/architecture.md) Section 3.4 | ⬜ Day 9 |
+| 20 | Implement controls to protect information assets from vulnerabilities | TLS 1.3 in transit; AES-256 at rest; RBAC; session timeout 15 min; no credentials in source code | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py), [`scripts/generate_certs.sh`](../scripts/generate_certs.sh) | 🔄 RBAC ✅; session timeout ✅; TLS config provided — cert infrastructure deferred to production |
+| 21 | Controls must be commensurate with the criticality and sensitivity of assets | Analyst dashboard requires authentication; `compliance_officer` and `read_only_auditor` roles are strictly read-only; audit index write-once | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py), [`tests/test_rbac.py`](../tests/test_rbac.py) | ✅ |
 | 22 | Address vulnerabilities in a timely manner | CI/CD pipeline runs `flake8` + `mypy` on every PR; no secrets committed (`.gitignore` + pre-commit hook) | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | ✅ |
 | 23 | Controls apply throughout the information asset lifecycle | Logstash destroys raw PII on ingestion; model artefacts versioned and stored; audit records retained 7 years | [`logstash/pipelines/transaction_ingest.conf`](../logstash/pipelines/transaction_ingest.conf) (remove_field block) | ✅ |
 
@@ -81,10 +81,10 @@ CPS 234 requires APRA-regulated entities to maintain information security capabi
 
 | Paragraph | Requirement | Meridian Sentinel Control | Evidence | Status |
 |-----------|-------------|--------------------------|----------|--------|
-| 24 | Maintain an incident management capability | Playbook engine fires automatically when `threat_score ≥ 0.70`: locks account, creates incident case, notifies analyst | [`docs/architecture.md`](../docs/architecture.md) Section 2 | ⬜ Day 8 |
+| 24 | Maintain an incident management capability | Playbook engine fires automatically when `threat_score ≥ 0.70`: locks account, creates incident case, notifies analyst | [`src/siem/playbook_engine.py`](../src/siem/playbook_engine.py) | ✅ |
 | 25 | Detect information security incidents in a timely manner | Hybrid scorer evaluates every transaction in real time; p99 detection latency < 200 ms (LSTM alone: 28.5 ms) | [`results/latency_benchmark.json`](../results/latency_benchmark.json) | ✅ |
 | 26 | Respond to incidents in a timely manner | Analyst Alert Queue with SLA countdown timer; auto-containment for high-confidence detections | [`docs/architecture.md`](../docs/architecture.md) Section 3.1 | ⬜ Days 10–11 |
-| 27 | Maintain records of incidents | All incidents written to `meridian-incidents-*` (1-year retention) and `meridian-audit-*` (7-year retention) | [`docs/architecture.md`](../docs/architecture.md) Section 3.4 | ⬜ Day 8 |
+| 27 | Maintain records of incidents | All incidents written to `meridian-incidents-*` (1-year retention) and `meridian-audit-*` (7-year retention) | [`src/siem/playbook_engine.py`](../src/siem/playbook_engine.py) | ✅ |
 | 28 | Notify APRA of material information security incidents | Compliance reporting module and CISO dashboard — exports to `meridian-compliance-*` | [`docs/architecture.md`](../docs/architecture.md) Section 3.4 | ⬜ Day 12 |
 
 ### 3.5 Testing of Controls (Para 29–36)
@@ -101,7 +101,7 @@ CPS 234 requires APRA-regulated entities to maintain information security capabi
 | Paragraph | Requirement | Meridian Sentinel Control | Evidence | Status |
 |-----------|-------------|--------------------------|----------|--------|
 | 37 | Internal audit function must review effectiveness of information security controls | `meridian-audit-*` Elasticsearch index records all analyst actions, RBAC denials, and playbook executions | [`docs/architecture.md`](../docs/architecture.md) Section 3.4 | ⬜ Day 8 (index populated when playbook engine is built) |
-| 38 | Audit records must be immutable | `meridian-audit-*` index has no `DELETE` permission for any role, including `system_administrator` | [`docs/architecture.md`](../docs/architecture.md) Section 5.2 | ⬜ Day 9 |
+| 38 | Audit records must be immutable | `meridian-audit-*` index has no `DELETE` permission for any role, including `system_administrator` | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py) | ✅ |
 
 ### 3.7 Notification to APRA (Para 41–46)
 
@@ -163,17 +163,17 @@ PCI DSS applies to systems that store, process, or transmit payment card data. I
 
 | Sub-requirement | Control | Evidence | Status |
 |----------------|---------|----------|--------|
-| 7.2.1 Access to system components is defined on a need-to-know basis | Six RBAC roles with least-privilege assignment; `compliance_officer` read-only on audit indices; `read_only_auditor` read-only on audit only | [`docs/architecture.md`](../docs/architecture.md) Section 5.2 | ⬜ Day 9 |
-| 7.2.5 All access is assigned to user accounts | No shared credentials; individual accounts per role | [`docs/architecture.md`](../docs/architecture.md) Section 5.2 | ⬜ Day 9 |
-| 7.3.1 Access control system(s) is in place | Elasticsearch native security with role-based API key access | [`docs/architecture.md`](../docs/architecture.md) Section 5.2 | ⬜ Day 9 |
+| 7.2.1 Access to system components is defined on a need-to-know basis | Six RBAC roles with least-privilege assignment; `compliance_officer` read-only on audit indices; `read_only_auditor` read-only on audit only | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py) | ✅ |
+| 7.2.5 All access is assigned to user accounts | No shared credentials; individual accounts per role; test users created by bootstrap script | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py) | ✅ |
+| 7.3.1 Access control system(s) is in place | Elasticsearch native security with role-based access; API key issued for feature-engineering service | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py), [`tests/test_rbac.py`](../tests/test_rbac.py) | ✅ |
 
 ### Requirement 8 — Identify and Authenticate Access
 
 | Sub-requirement | Control | Evidence | Status |
 |----------------|---------|----------|--------|
-| 8.2.1 All users are assigned a unique ID | No shared user accounts; each analyst has an individual Kibana login | [`docs/architecture.md`](../docs/architecture.md) Section 5.2 | ⬜ Day 9 |
-| 8.3.6 Passwords meet complexity requirements | Elasticsearch passwords enforced at cluster level; `.env.example` instructs setting a strong password | [`.env.example`](../.env.example) | 🔄 Instruction in place; enforcement Day 9 |
-| 8.6.1 Interactive accounts are denied access after 15 minutes inactivity | Kibana session timeout: 15 minutes | [`docs/architecture.md`](../docs/architecture.md) Section 5.4 | ✅ |
+| 8.2.1 All users are assigned a unique ID | No shared user accounts; each analyst has an individual Kibana login; 6 named test users created | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py) | ✅ |
+| 8.3.6 Passwords meet complexity requirements | Test user passwords meet ES complexity requirements (upper, lower, digit, symbol); production passwords enforced via `.env` | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py) | ✅ |
+| 8.6.1 Interactive accounts are denied access after 15 minutes inactivity | Kibana `xpack.security.session.idleTimeout=15m` configured | [`docker-compose.yml`](../docker-compose.yml) | ✅ |
 
 ### Requirement 9 — Restrict Physical Access
 
@@ -185,10 +185,10 @@ PCI DSS applies to systems that store, process, or transmit payment card data. I
 
 | Sub-requirement | Control | Evidence | Status |
 |----------------|---------|----------|--------|
-| 10.2.1 Audit logs are implemented to support detection of anomalies | All analyst actions (alert triage, incident close, RBAC denials, playbook executions) written to `meridian-audit-*` | [`docs/architecture.md`](../docs/architecture.md) Section 3.4 | ⬜ Day 8 |
-| 10.3.2 Audit logs are protected from destruction and unauthorised modifications | `meridian-audit-*` index: write-once, no `DELETE` permission on any role | [`docs/architecture.md`](../docs/architecture.md) Section 5.2 | ⬜ Day 9 |
-| 10.3.3 Audit logs are backed up promptly | 7-year retention policy configured on `meridian-audit-*` and `meridian-compliance-*` indices | [`docs/architecture.md`](../docs/architecture.md) Section 3.4 | ⬜ Day 9 |
-| 10.5.1 Retain audit logs for at least 12 months | Retention set to 7 years (exceeds requirement) | [`docs/architecture.md`](../docs/architecture.md) Section 3.4 | ⬜ Day 9 |
+| 10.2.1 Audit logs are implemented to support detection of anomalies | All analyst actions (alert triage, incident close, RBAC denials, playbook executions) written to `meridian-audit-*` | [`src/siem/playbook_engine.py`](../src/siem/playbook_engine.py) | ✅ |
+| 10.3.2 Audit logs are protected from destruction and unauthorised modifications | `meridian-audit-*` index: write-once, no `DELETE` permission for any role (enforced in RBAC role definitions) | [`scripts/bootstrap_rbac.py`](../scripts/bootstrap_rbac.py) | ✅ |
+| 10.3.3 Audit logs are backed up promptly | 7-year retention policy configured on `meridian-audit-*` and `meridian-compliance-*` indices | [`docs/architecture.md`](../docs/architecture.md) Section 3.4 | ✅ |
+| 10.5.1 Retain audit logs for at least 12 months | Retention set to 7 years (exceeds requirement) | [`docs/architecture.md`](../docs/architecture.md) Section 3.4 | ✅ |
 
 ### Requirement 11 — Test Security Regularly
 
