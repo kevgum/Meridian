@@ -20,7 +20,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 ## 🏃 IN PROGRESS
 
 - [ ] **US-04:** LSTM inference REST API — Day 6 (Sourav + Kevin)
-  - [ ] `Dockerfile.serving` — PyTorch + FastAPI container
+  - [ ] `Dockerfile.serving` — ONNX Runtime + FastAPI container (decision: ONNX over TF Serving — model already exported to ONNX in Day 5)
   - [ ] `docker-compose.yml` — add lstm-serving + feature-engineering services
   - [ ] `src/inference_client.py` — REST client wrapper
   - [ ] `tests/test_inference_api.py` — smoke tests (fraud + clean pattern)

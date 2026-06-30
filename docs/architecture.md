@@ -145,7 +145,7 @@ The two engines are fused by a **Hybrid Threat Scorer** that blends their output
 |-----------|-----------|---------------|
 | Log Ingestion | Filebeat + Logstash | Pull events from simulated banking channels; normalise to ECS; obfuscate PII; push to Elasticsearch |
 | Feature Engineering Service | Python 3.11 (Docker) | Build 5-transaction sequences per customer; compute 12 engineered features; call LSTM inference API |
-| LSTM Inference API | TensorFlow Serving (Docker) | Serve trained LSTM model via REST; accept sequence JSON; return anomaly probability |
+| LSTM Inference API | ONNX Runtime + FastAPI (Docker) | Serve trained LSTM model via REST; accept sequence JSON; return anomaly probability. Decision: ONNX export was produced in Day 5; ONNX Runtime chosen over TF Serving to avoid PyTorch→TF SavedModel conversion overhead. |
 | SIEM Correlation Engine | Elastic SIEM + Python | Evaluate 4 detection rules against each event; produce SIEM rule score |
 | Hybrid Threat Scorer | Python (Docker) | Blend LSTM score (60%) and SIEM score (40%); threshold at 0.70 |
 | Playbook Engine | Python (Docker) | Fire containment action, create incident case, notify analyst when threat ≥ 0.70 |
@@ -155,7 +155,7 @@ The two engines are fused by a **Hybrid Threat Scorer** that blends their output
 ### 3.3 Machine Learning Layer
 
 **Model:** Stacked LSTM Neural Network  
-**Framework:** PyTorch (training) + TensorFlow Serving (inference)  
+**Framework:** PyTorch (training) + ONNX Runtime / FastAPI (inference)  
 **Dataset:** PaySim (6.3 M transactions) + UNSW-NB15 (network intrusion patterns)  
 **Sequence length:** 5 transactions per customer (sliding window)
 
@@ -441,9 +441,9 @@ meridian-sentinel/
 |-------|------|---------|---------|
 | ML Development | Python | 3.11 | Data pipeline + model code |
 | ML Framework | PyTorch | 2.x | LSTM training |
-| ML Framework | TensorFlow/Keras | 2.x | Model export + serving |
 | ML Libraries | scikit-learn, Pandas, NumPy | Latest | Evaluation, data wrangling |
-| Model Serving | TensorFlow Serving | 2.x | REST inference API |
+| Model Export | ONNX (opset 17) | Latest | Portable model format exported from PyTorch in Day 5 |
+| Model Serving | ONNX Runtime + FastAPI | Latest | REST inference API — chosen over TF Serving (Day 6 decision) |
 | SIEM | Elasticsearch | 8.x | Event storage + search |
 | SIEM | Kibana | 8.x | Dashboards + analyst UI |
 | SIEM | Logstash | 8.x | Log transformation pipeline |
