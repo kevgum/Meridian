@@ -58,11 +58,9 @@
 
 **3. Enforce TLS on Logstash.** `docker-compose.tls.yml` activates TLS 1.3 on Elasticsearch and Kibana. The Logstash pipeline still uses `http://` because Logstash's elasticsearch output plugin does not support boolean env-var substitution for `ssl_enabled` — enabling TLS requires a separate pipeline config file. See [runbook.md](runbook.md) Section 8 for the full procedure.
 
-**4. Rate-limit and authenticate the LSTM inference API (unchanged).** The FastAPI inference service has no authentication — any caller with network access to port 8080 can query the model. In production, requests should carry a scoped API key and the endpoint should sit behind a rate limiter.
+**4. Rate-limit and authenticate the LSTM inference API.** The FastAPI inference service has no authentication — any caller with network access to port 8080 can query the model. In production, requests should carry a scoped API key (already issued by `bootstrap_rbac.py` for the feature-engineering service) and the endpoint should sit behind a rate limiter to prevent model inference abuse.
 
-**5. Rate-limit and authenticate the LSTM inference API.** The FastAPI inference service has no authentication — any caller with network access to port 8080 can query the model. In production, requests should carry a scoped API key (already issued by `bootstrap_rbac.py` for the feature-engineering service) and the endpoint should sit behind a rate limiter to prevent model inference abuse.
-
-**6. Replace mock data with a proper feature pipeline.** The dashboard's live polling (`useElasticPolling.ts`) queries Elasticsearch directly from the browser. This works for a prototype but exposes ES credentials to the browser. Production would have a thin API Gateway between the React client and Elasticsearch, performing authentication, authorisation, and field-level filtering before returning results.
+**5. Replace mock data with a proper feature pipeline.** The dashboard's live polling (`useElasticPolling.ts`) queries Elasticsearch directly from the browser. This works for a prototype but exposes ES credentials to the browser. Production would have a thin API Gateway between the React client and Elasticsearch, performing authentication, authorisation, and field-level filtering before returning results.
 
 ---
 
