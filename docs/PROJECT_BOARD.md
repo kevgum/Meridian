@@ -19,12 +19,13 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## 🏃 IN PROGRESS
 
-- [ ] **US-04:** LSTM inference REST API — Day 6 (Sourav + Kevin)
-  - [ ] `Dockerfile.serving` — ONNX Runtime + FastAPI container (decision: ONNX over TF Serving — model already exported to ONNX in Day 5)
-  - [ ] `docker-compose.yml` — add lstm-serving + feature-engineering services
-  - [ ] `src/inference_client.py` — REST client wrapper
-  - [ ] `tests/test_inference_api.py` — smoke tests (fraud + clean pattern)
-  - [ ] `results/latency_benchmark.json` — 100-call latency benchmark
+- [x] **US-04:** LSTM inference REST API — Day 6 (Sourav + Kevin)
+  - [x] `Dockerfile.serving` — ONNX Runtime + FastAPI; auto-converts .pt → ONNX at startup
+  - [x] `docker/convert_to_onnx.py` — conversion script bundled in container
+  - [x] `docker-compose.yml` — lstm-serving + feature-engineering + healthchecks
+  - [x] `src/inference_client.py` — REST client wrapper (predict + predict_batch)
+  - [x] `tests/test_inference_api.py` — 7/7 smoke tests passing
+  - [x] `results/latency_benchmark.json` — p99: 28.5 ms (target < 200 ms ✓)
 
 ---
 

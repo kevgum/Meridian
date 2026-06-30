@@ -1,0 +1,14 @@
+{
+  "endpoint": "http://localhost:8080",
+  "n_calls": 100,
+  "latency_ms": {
+    "min": 3.99,
+    "max": 28.93,
+    "mean": 12.73,
+    "p50": 14.9,
+    "p95": 27.76,
+    "p99": 28.5
+  },
+  "target_ms": 200,
+  "p99_target_met": true
+}
