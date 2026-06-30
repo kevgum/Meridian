@@ -304,7 +304,7 @@ These decisions are final — do not re-open them without talking to the team:
 | 3–4 | LSTM model training | ✅ Done |
 | 5 | Evaluation (threshold tuning + ONNX export) | ✅ Done |
 | 6 | ONNX Runtime + FastAPI serving (Docker) | ✅ Done — 7/7 tests pass, p99=28.5ms |
-| 7 | Elastic SIEM + rule engine | 🔄 In Progress |
+| 7 | Elastic SIEM + rule engine | ✅ Done — 22/22 tests pass, ECS Logstash pipeline live |
 | 8 | Hybrid threat scorer + playbook engine | ⬜ Not started |
 | 9 | RBAC + compliance mapping | ⬜ Not started |
 | 10–11 | React analyst dashboard | ⬜ Not started |

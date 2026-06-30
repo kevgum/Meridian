@@ -190,32 +190,23 @@ Meridaian/
 ├── src/
 │   ├── models/lstm_model.py       # LSTMFraudDetector PyTorch class
 │   ├── serving/app.py             # FastAPI inference API
+│   ├── siem/rule_engine.py        # ElasticSIEMCorrelator — 4 SIEM detection rules
 │   ├── inference_client.py        # REST client wrapper
 │   └── pipeline/                  # Feature engineering service
-├── tests/
-│   ├── test_inference_api.py      # 7 smoke tests (all passing)
-│   └── test_acceptance.py         # AT-1 through AT-10 (Day 12)
 ├── watchlist/
-│   └── merchants.json             # Known bad merchant IDs (SIEM Rule 4)
+│   └── merchants.json             # Known-bad merchant IDs (SIEM Rule 4)
+├── tests/
+│   ├── test_inference_api.py      # 7 LSTM smoke tests (all passing)
+│   ├── test_siem_rules.py         # 22 SIEM rule unit tests (all passing)
+│   └── test_acceptance.py         # AT-1 through AT-10 (Day 12)
 ├── .env.example                   # Environment variable template
 ├── docker-compose.yml             # Full stack orchestration
 ├── Dockerfile.serving             # LSTM inference container
 ├── CLAUDE.md                      # AI assistant context (start here if using Claude)
-└── ONBOARDING.md                  # Team onboarding guide
+└── onboarding.md                  # Team onboarding guide
 ```
 
----
 
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ELASTIC_PASSWORD` | `meridian123` | Elasticsearch + Kibana password |
-| `LSTM_SERVING_URL` | `http://localhost:8080` | LSTM inference API base URL |
-| `DECISION_THRESHOLD` | `0.90` | Sigmoid threshold for fraud classification |
-| `BATCH_SIZE` | `512` | Feature pipeline batch size |
-
----
 
 ## Stopping the Stack
 
@@ -263,8 +254,6 @@ lsof -i :8080                         # Mac/Linux
 
 | Role | Name |
 |------|------|
-| PM / Architect | Maria Angel |
-| ML Engineer | Sourav Das |
 | Security Engineer | Kevin Mugambi |
 
 ---

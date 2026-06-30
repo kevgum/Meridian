@@ -19,13 +19,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## 🏃 IN PROGRESS
 
-- [x] **US-04:** LSTM inference REST API — Day 6 (Sourav + Kevin)
-  - [x] `Dockerfile.serving` — ONNX Runtime + FastAPI; auto-converts .pt → ONNX at startup
-  - [x] `docker/convert_to_onnx.py` — conversion script bundled in container
-  - [x] `docker-compose.yml` — lstm-serving + feature-engineering + healthchecks
-  - [x] `src/inference_client.py` — REST client wrapper (predict + predict_batch)
-  - [x] `tests/test_inference_api.py` — 7/7 smoke tests passing
-  - [x] `results/latency_benchmark.json` — p99: 28.5 ms (target < 200 ms ✓)
+*(Empty — Day 7 complete, Day 8 not yet started)*
 
 ---
 
@@ -52,3 +46,19 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] Evaluated on test set at threshold=0.90 → accuracy 98.4%, recall 67.2%, FPR 1.54%
   - [x] ONNX export → `models/serving/lstm_v1/lstm_fraud_detector.onnx` (Drive only — gitignored)
   - [x] `models/MODEL_CARD.md` written and committed
+
+- [x] **US-04:** LSTM inference REST API — Day 6 (Sourav + Kevin)
+  - [x] `Dockerfile.serving` — ONNX Runtime + FastAPI; auto-converts .pt → ONNX at startup
+  - [x] `docker/convert_to_onnx.py` — conversion script bundled in container
+  - [x] `docker-compose.yml` — lstm-serving + elasticsearch + kibana + logstash + healthchecks
+  - [x] `src/inference_client.py` — REST client wrapper (predict + predict_batch)
+  - [x] `tests/test_inference_api.py` — 7/7 smoke tests passing
+  - [x] `results/latency_benchmark.json` — p99: 28.5 ms (target < 200 ms ✓)
+
+- [x] **US-05:** SIEM detection rules — Day 7
+  - [x] `src/siem/rule_engine.py` — ElasticSIEMCorrelator with 4 rules (amount, geo-velocity, off-hours, watchlist)
+  - [x] Haversine geo-velocity helper (km/h computed from raw coordinates, not a flag)
+  - [x] `ZoneInfo("Australia/Sydney")` for correct AEST/AEDT off-hours evaluation
+  - [x] `watchlist/merchants.json` — 20 seed known-bad merchant IDs
+  - [x] `logstash/pipelines/transaction_ingest.conf` — full ECS pipeline with SHA-256 PII hashing
+  - [x] `tests/test_siem_rules.py` — 22/22 unit tests passing (no container required)

@@ -31,19 +31,19 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 
 ---
 
-## Current State (as of Day 6 complete)
+## Current State (as of Day 7 complete)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | LSTM model | ✅ Trained + committed | 98.4% acc, 1.54% FPR at threshold=0.90 |
 | ONNX serving (FastAPI) | ✅ Running | p99=28.5ms, 7/7 smoke tests pass |
-| Elastic SIEM stack | 🔄 In progress | Docker services up; rule engine not yet written |
+| Elastic SIEM stack | ✅ Done | Rule engine live, ECS Logstash pipeline, 22/22 tests pass |
 | Hybrid scorer | ⬜ Not started | Day 8 |
 | Playbook engine | ⬜ Not started | Day 8 |
 | React dashboard | ⬜ Not started | Days 10–11 |
 | Acceptance tests | ⬜ Not started | Day 12 |
 
-Active branch: `feature/day6-docker-stack`  
+Active branch: `feature/day7-siem-rules`  
 Main branch: `main`
 
 ---
@@ -111,15 +111,15 @@ Input [batch, 5, 12]
 
 ---
 
-## SIEM Rules (Day 7 target)
+## SIEM Rules (Day 7 — complete)
 
-Implement in `src/siem/rule_engine.py` as `ElasticSIEMCorrelator`:
+Implemented in [src/siem/rule_engine.py](src/siem/rule_engine.py) as `ElasticSIEMCorrelator`. 22/22 unit tests passing.
 
 | Rule | Condition | Severity |
 |------|-----------|---------|
 | Rule 1 | `amount > 10000` | HIGH |
-| Rule 2 | Geo-velocity > 500 km/h between consecutive transactions | HIGH |
-| Rule 3 | Transaction time before 08:00 or after 22:00 AEST | MEDIUM |
+| Rule 2 | Haversine geo-velocity > 500 km/h between consecutive transactions | HIGH |
+| Rule 3 | Transaction time before 08:00 or after 22:00 AEST/AEDT | MEDIUM |
 | Rule 4 | Merchant ID in `watchlist/merchants.json` | HIGH |
 
 Each rule returns: `{rule_id, triggered: bool, severity: str, evidence: dict}`
@@ -129,6 +129,20 @@ SIEM score normalisation:
 - 1 rule → 0.33
 - 2 rules → 0.67
 - 3+ rules → 1.00
+
+**Event dict shape** (required fields for full rule evaluation):
+```python
+{
+    "amount": float,              # Rule 1
+    "lat": float, "lon": float,   # Rule 2 — current transaction coordinates
+    "prev_lat": float, "prev_lon": float,  # Rule 2 — prior transaction
+    "timestamp": str,             # Rules 2 + 3 — ISO 8601
+    "prev_timestamp": str,        # Rule 2
+    "merchant_id": str,           # Rule 4
+}
+```
+
+**Windows note:** `pip install tzdata` required for `ZoneInfo("Australia/Sydney")`. Linux/Docker uses system IANA data automatically.
 
 ---
 
@@ -165,7 +179,9 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | [docs/training-notes.md](docs/training-notes.md) | Training history + decisions |
 | [docs/model-serving.md](docs/model-serving.md) | ONNX conversion + Docker serving — full technical reference |
 | [docs/colab-guide.md](docs/colab-guide.md) | Step-by-step Colab training + download instructions |
-| [logstash/pipelines/transaction_ingest.conf](logstash/pipelines/transaction_ingest.conf) | Logstash pipeline (placeholder) |
+| [src/siem/rule_engine.py](src/siem/rule_engine.py) | ElasticSIEMCorrelator — 4 SIEM rules + score normalisation |
+| [watchlist/merchants.json](watchlist/merchants.json) | Known-bad merchant IDs (Rule 4 seed data, 20 entries) |
+| [logstash/pipelines/transaction_ingest.conf](logstash/pipelines/transaction_ingest.conf) | Full ECS pipeline — SHA-256 PII hash, field mapping, ES output |
 
 ---
 
@@ -193,8 +209,14 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 ## Test Commands
 
 ```bash
-# Smoke tests (container must be running on :8080)
+# LSTM API smoke tests (container must be running on :8080)
 python -m pytest tests/test_inference_api.py -v
+
+# SIEM rule engine tests (no container required — pure unit tests)
+python -m pytest tests/test_siem_rules.py -v
+
+# All tests
+python -m pytest tests/ -v
 
 # Latency benchmark (100 calls → results/latency_benchmark.json)
 python -m src.benchmark
