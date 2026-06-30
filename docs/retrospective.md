@@ -13,7 +13,7 @@
 | Inference API | p99 < 200 ms | p99 = 28.5 ms | 7× headroom on target |
 | SIEM rule engine | 4 rules, score normalisation | Delivered | 22/22 unit tests pass |
 | Hybrid scorer | threat_score = lstm×0.60 + siem×0.40 | Delivered | LSTM_ALONE path added beyond original spec |
-| Playbook engine | lock + incident + notify | Delivered | Notification is mock (logger.warning) |
+| Playbook engine | lock + incident + notify | Delivered | Notification writes to ES + optional webhook (ANALYST_WEBHOOK_URL) |
 | RBAC | 6 roles, least-privilege | Delivered | Kibana service-account complexity not anticipated |
 | SOC dashboard | 4 panels, live polling, WCAG 2.2 AA | Delivered | Session timeout, investigation drawer, screen-reader support |
 | Acceptance tests | 10 ATs, automated | 35/35 PASS (3.43s) | 35 tests, not 10 — grew as infrastructure complexity increased |
@@ -56,9 +56,9 @@
 
 **2. Add `create_index` to the analyst role, or use ILM.** The `security_analyst` role intentionally lacks `create_index` (least-privilege). This means indices must be pre-created before analysts can write to them. In production this is handled by an ILM policy or an index template with `auto_configure` granted to the application service account, not the analyst role. The prototype workaround (admin pre-creates the index in the acceptance test) is correct pattern-matching but not a substitute for proper ILM.
 
-**3. Move the analyst notification off `logger.warning`.** The current playbook engine notifies analysts by writing a `WARNING` log line. In production this should be a real call: PagerDuty/Opsgenie webhook, email, or a Slack/Teams integration. The interface is already abstracted in `_notify_analyst()` — it just needs a real implementation.
+**3. Enforce TLS on Logstash.** `docker-compose.tls.yml` activates TLS 1.3 on Elasticsearch and Kibana. The Logstash pipeline still uses `http://` because Logstash's elasticsearch output plugin does not support boolean env-var substitution for `ssl_enabled` — enabling TLS requires a separate pipeline config file. See [runbook.md](runbook.md) Section 8 for the full procedure.
 
-**4. Enforce TLS.** `scripts/generate_certs.sh` and the TLS config are provided but not active in the Docker prototype because enabling TLS requires updating every service URL and healthcheck in `docker-compose.yml`. In production, TLS 1.3 on all Elasticsearch HTTP/transport connections is required by PCI DSS Req 4.2.1 and APRA CPS 234. This is a one-day task that was deferred from Day 9 due to time constraints.
+**4. Rate-limit and authenticate the LSTM inference API (unchanged).** The FastAPI inference service has no authentication — any caller with network access to port 8080 can query the model. In production, requests should carry a scoped API key and the endpoint should sit behind a rate limiter.
 
 **5. Rate-limit and authenticate the LSTM inference API.** The FastAPI inference service has no authentication — any caller with network access to port 8080 can query the model. In production, requests should carry a scoped API key (already issued by `bootstrap_rbac.py` for the feature-engineering service) and the endpoint should sit behind a rate limiter to prevent model inference abuse.
 

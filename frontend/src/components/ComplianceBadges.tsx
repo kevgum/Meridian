@@ -1,4 +1,4 @@
-import { Shield, Lock, Eye } from 'lucide-react';
+import { Shield, Lock, Eye, Download } from 'lucide-react';
 
 interface Badge {
   framework: string;
@@ -32,6 +32,44 @@ const BADGES: Badge[] = [
   },
 ];
 
+const COMPLIANCE_EXPORT = {
+  generated_at: new Date().toISOString(),
+  system: 'Meridian Sentinel v1.0.0-prototype',
+  frameworks: [
+    {
+      framework: 'APRA CPS 234',
+      status: 'ACTIVE',
+      paragraphs: 'Para 15–38',
+      controls: ['Incident management', 'Audit trail', 'Information security controls'],
+      evidence: 'results/acceptance_test_report.md',
+    },
+    {
+      framework: 'PCI DSS v4.0',
+      status: 'ACTIVE',
+      requirements: 'Req 7–10',
+      controls: ['RBAC (6 roles)', '15-min session timeout', 'Immutable audit logs', 'Network isolation'],
+      evidence: 'compliance/control_mapping.md',
+    },
+    {
+      framework: 'Australian Privacy Act 1988',
+      status: 'ACTIVE',
+      controls: ['SHA-256 PII hashing at Logstash ingestion', 'Raw PII never stored'],
+      evidence: 'logstash/pipelines/transaction_ingest.conf',
+    },
+  ],
+  note: 'AES-256 at rest requires Elasticsearch Platinum licence — documented as production control.',
+};
+
+function handleExport() {
+  const blob = new Blob([JSON.stringify(COMPLIANCE_EXPORT, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `meridian-compliance-report-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function ComplianceBadges() {
   return (
     <div className="w-72 shrink-0 bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col">
@@ -59,15 +97,23 @@ export default function ComplianceBadges() {
         ))}
       </div>
 
-      {/* Footer note */}
-      <div className="mt-3 pt-3 border-t border-slate-700">
+      {/* Footer note + US-12 export */}
+      <div className="mt-3 pt-3 border-t border-slate-700 space-y-2">
         <p className="text-xs text-slate-500 leading-snug">
           Full control mapping:{' '}
           <span className="text-slate-400 font-mono">compliance/control_mapping.md</span>
         </p>
-        <p className="text-xs text-slate-600 mt-1">
+        <p className="text-xs text-slate-600">
           AES-256 at rest: requires ES Platinum — documented as production control
         </p>
+        <button
+          onClick={handleExport}
+          aria-label="Export compliance report as JSON"
+          className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-semibold transition-colors border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <Download size={12} aria-hidden="true" />
+          Export Compliance Report
+        </button>
       </div>
     </div>
   );

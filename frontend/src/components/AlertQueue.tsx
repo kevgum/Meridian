@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, Lock, Search, MapPin, DollarSign, Clock } from 'lucide-react';
+import { AlertTriangle, Lock, Search, MapPin, DollarSign, Clock, ArrowUpCircle } from 'lucide-react';
 import axios from 'axios';
 import type { Incident } from '../types';
 import type { ToastMessage } from './Toast';
+
+type SeverityFilter = 'ALL' | 'HIGH' | 'MONITOR';
 
 interface Props {
   incident: Incident;
@@ -28,6 +30,25 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
   const sla = useSlaCountdown(248);
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [filter, setFilter] = useState<SeverityFilter>('ALL');
+  const [escalated, setEscalated] = useState(false);
+
+  function handleEscalate() {
+    setEscalated(true);
+    onToast({
+      message: `Incident ${incident.incidentId} escalated to Senior Security Engineer`,
+      variant: 'success',
+    });
+  }
+
+  const showHighAlert = filter === 'ALL' || filter === 'HIGH';
+  const showMonitorAlerts = filter === 'ALL' || filter === 'MONITOR';
+
+  const FILTER_BUTTONS: { label: SeverityFilter; count: number }[] = [
+    { label: 'ALL', count: 3 },
+    { label: 'HIGH', count: 1 },
+    { label: 'MONITOR', count: 2 },
+  ];
 
   async function handleConfirmThreat() {
     setConfirming(true);
@@ -65,30 +86,58 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
           Alert Queue
         </p>
         <p className="text-xs text-slate-500 mt-0.5">3 active · 1 requiring action</p>
+
+        {/* US-08: severity filter chips */}
+        <div
+          className="flex gap-1 mt-2"
+          role="group"
+          aria-label="Filter alerts by severity"
+        >
+          {FILTER_BUTTONS.map(({ label, count }) => (
+            <button
+              key={label}
+              onClick={() => setFilter(label)}
+              aria-pressed={filter === label}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                filter === label
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200'
+              }`}
+            >
+              {label}
+              <span className="opacity-70">{count}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Background alerts */}
-      <div className="px-3 py-2 border-b border-slate-700/50 opacity-40" aria-hidden="true">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-400">CUST-44209</span>
-          <span className="text-xs text-blue-400 font-semibold">MONITOR</span>
-        </div>
-        <p className="text-xs text-slate-500">Qantas charge · Sydney, NSW</p>
-      </div>
-      <div className="px-3 py-2 border-b border-slate-700/50 opacity-40" aria-hidden="true">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-400">CUST-73940</span>
-          <span className="text-xs text-blue-400 font-semibold">MONITOR</span>
-        </div>
-        <p className="text-xs text-slate-500">Electronics purchase · Melbourne, VIC</p>
-      </div>
+      {/* MONITOR alerts — shown when filter is ALL or MONITOR */}
+      {showMonitorAlerts && (
+        <>
+          <div className="px-3 py-2 border-b border-slate-700/50 opacity-50">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">CUST-44209</span>
+              <span className="text-xs text-blue-400 font-semibold">MONITOR</span>
+            </div>
+            <p className="text-xs text-slate-500">Qantas charge · Sydney, NSW</p>
+          </div>
+          <div className="px-3 py-2 border-b border-slate-700/50 opacity-50">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">CUST-73940</span>
+              <span className="text-xs text-blue-400 font-semibold">MONITOR</span>
+            </div>
+            <p className="text-xs text-slate-500">Electronics purchase · Melbourne, VIC</p>
+          </div>
+        </>
+      )}
 
-      {/* Active alert */}
+      {/* Active HIGH alert — hidden when MONITOR-only filter is active */}
       <div
-        className="flex-1 p-3 flex flex-col gap-3 overflow-y-auto"
+        className={`flex-1 p-3 flex flex-col gap-3 overflow-y-auto${showHighAlert ? '' : ' hidden'}`}
         aria-live="polite"
         aria-atomic="false"
         aria-label="Active alert details"
+        aria-hidden={!showHighAlert}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -194,6 +243,20 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
           >
             <Search size={14} aria-hidden="true" />
             Investigate
+          </button>
+          {/* US-11: escalate to Senior Security Engineer */}
+          <button
+            onClick={handleEscalate}
+            disabled={escalated}
+            aria-label={escalated ? 'Escalated to Senior Security Engineer' : 'Escalate to Senior Security Engineer'}
+            className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-xs font-semibold transition-colors border focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+              escalated
+                ? 'bg-purple-900/40 border-purple-700/40 text-purple-300 cursor-default'
+                : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:bg-slate-600 hover:text-slate-200'
+            }`}
+          >
+            <ArrowUpCircle size={13} aria-hidden="true" />
+            {escalated ? 'Escalated' : 'Escalate to Senior Engineer'}
           </button>
         </div>
       </div>

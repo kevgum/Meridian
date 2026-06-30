@@ -3,16 +3,20 @@
 When PlaybookEngine.fire() is called, it:
   1. Generates a UUID incident record with full evidence
   2. Writes the record to Elasticsearch index meridian-incidents-YYYY.MM.dd
-  3. Emits a mock analyst notification via the Python logger
+  3. Writes a notification record to meridian-notifications-YYYY.MM.dd
+  4. POSTs a JSON payload to ANALYST_WEBHOOK_URL (if set in env) for Teams/PagerDuty/Slack
+  5. Emits a structured WARNING log for log-aggregation agents (Logstash, Filebeat)
 
-In production the notification would POST to a Teams/PagerDuty webhook.
-For the prototype the log line at WARNING level serves as the audit evidence.
+Set ANALYST_WEBHOOK_URL in .env to route notifications to a real channel.
+Leave it unset to run in log-only mode.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -28,8 +32,9 @@ except ImportError:
     _ES_AVAILABLE = False
     Elasticsearch = Any  # type: ignore[misc,assignment]
 
-# Index prefix — daily rollover appended at write time: meridian-incidents-2026.06.30
+# Index prefixes — daily rollover appended at write time
 _INCIDENT_INDEX_PREFIX = "meridian-incidents"
+_NOTIFICATION_INDEX_PREFIX = "meridian-notifications"
 
 
 def _severity_from_score(threat_score: float, trigger_reason: str) -> str:
@@ -179,11 +184,13 @@ class PlaybookEngine:
     def _notify_analyst(self, incident: dict) -> None:
         """Send an analyst notification for the incident.
 
-        Prototype: emits a structured WARNING log that monitoring agents
-        (Logstash, Filebeat) can pick up and forward to the Teams channel.
-        Production: replace with a POST to the Teams/PagerDuty webhook URL
-        stored in the ANALYST_WEBHOOK_URL environment variable.
+        Three notification channels are attempted in order:
+        1. meridian-notifications-* Elasticsearch index — searchable, auditable record.
+        2. ANALYST_WEBHOOK_URL (env) — HTTP POST to Teams/PagerDuty/Slack if configured.
+        3. logger.WARNING — always emitted; picked up by Logstash/Filebeat.
         """
+        self._write_notification_to_elasticsearch(incident)
+        self._post_webhook(incident)
         logger.warning(
             "INCIDENT CREATED | id=%s | customer=%s | severity=%s | "
             "threat_score=%.4f | trigger=%s | action=%s",
@@ -194,6 +201,95 @@ class PlaybookEngine:
             incident["trigger_reason"],
             incident["action"],
         )
+
+    def _write_notification_to_elasticsearch(self, incident: dict) -> None:
+        """Persist a notification record to a daily ES index.
+
+        Separate from the incident index so notification delivery status can be
+        queried independently.  Index pattern: meridian-notifications-YYYY.MM.dd
+        """
+        if self._es is None:
+            return
+
+        today = datetime.now(tz=timezone.utc).strftime("%Y.%m.%d")
+        index_name = f"{_NOTIFICATION_INDEX_PREFIX}-{today}"
+        notification = {
+            "notification_id": str(uuid.uuid4()),
+            "incident_id": incident["incident_id"],
+            "customer_id": incident["customer_id"],
+            "severity": incident["severity"],
+            "threat_score": incident["threat_score"],
+            "trigger_reason": incident["trigger_reason"],
+            "action": incident["action"],
+            "channel": "elasticsearch",
+            "delivered_at": datetime.now(tz=timezone.utc).isoformat(),
+            "status": "DELIVERED",
+        }
+
+        try:
+            self._es.index(index=index_name, document=notification)
+            logger.info(
+                "Notification for incident %s written to %s",
+                incident["incident_id"],
+                index_name,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Failed to write notification for incident %s: %s",
+                incident["incident_id"],
+                exc,
+            )
+
+    @staticmethod
+    def _post_webhook(incident: dict) -> None:
+        """POST a JSON notification payload to ANALYST_WEBHOOK_URL.
+
+        Supports Microsoft Teams (Adaptive Card), Slack (Block Kit), and any
+        generic JSON endpoint.  The payload is a simple flat dict; the receiving
+        service maps it to its own format.  Silently skips if the env var is
+        not set.
+        """
+        webhook_url = os.environ.get("ANALYST_WEBHOOK_URL", "")
+        if not webhook_url:
+            return
+
+        payload = {
+            "type": "MERIDIAN_INCIDENT",
+            "incident_id": incident["incident_id"],
+            "customer_id": incident["customer_id"],
+            "severity": incident["severity"],
+            "threat_score": incident["threat_score"],
+            "trigger_reason": incident["trigger_reason"],
+            "action": incident["action"],
+            "timestamp": incident["timestamp"],
+            "message": (
+                f"[{incident['severity']}] Incident {incident['incident_id']} — "
+                f"customer {incident['customer_id']} | "
+                f"threat_score={incident['threat_score']:.4f} | "
+                f"action={incident['action']}"
+            ),
+        }
+
+        try:
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                webhook_url,
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                logger.info(
+                    "Webhook notification delivered for incident %s (HTTP %s)",
+                    incident["incident_id"],
+                    resp.status,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Webhook delivery failed for incident %s: %s",
+                incident["incident_id"],
+                exc,
+            )
 
     @staticmethod
     def _build_client() -> "Elasticsearch":

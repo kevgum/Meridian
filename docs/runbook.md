@@ -156,12 +156,41 @@ Replace `<INCIDENT_ID>` and `<your_analyst_id>`. This writes to the immutable au
 ## 8. Security Operations
 
 - **Credentials** — all come from `.env` (copied from `.env.example`), never hardcoded. `.env` is gitignored.
-- **TLS** — config and `scripts/generate_certs.sh` are provided but not enforced in the Docker prototype (would require updating all service URLs/healthchecks). Treat as a pre-production hardening step.
 - **Periodic re-scan** — re-run the credential/secret scan and OWASP ZAP baseline (see [results/security_review.md](../results/security_review.md)) after any dependency bump or before a new tagged release:
   ```bash
   docker run --rm -v "$(pwd)/results:/zap/wrk" ghcr.io/zaproxy/zaproxy:stable \
     zap-baseline.py -t <deployed-dashboard-url> -r zap_report.html
   ```
+- **Analyst webhook notifications** — set `ANALYST_WEBHOOK_URL` in `.env` to route playbook notifications to Teams, Slack, or PagerDuty. Leave empty for log-only mode.
+
+### Enabling TLS 1.3 (PCI DSS Req 4.2.1)
+
+A `docker-compose.tls.yml` overlay and `scripts/generate_certs.sh` are provided. Steps:
+
+```bash
+# 1. Generate self-signed CA + ES server certificate (requires openssl)
+chmod +x scripts/generate_certs.sh
+./scripts/generate_certs.sh
+# Output: certs/ca.crt, certs/elasticsearch.crt, certs/elasticsearch.key
+
+# 2. Update .env
+ELASTIC_HOST=https://localhost:9200
+
+# 3. Start the stack with the TLS overlay
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+
+# 4. Re-run RBAC bootstrap (ES is now on HTTPS)
+python scripts/bootstrap_rbac.py
+```
+
+The overlay enables:
+- `xpack.security.http.ssl` on Elasticsearch with TLSv1.3 minimum
+- Kibana's `ELASTICSEARCH_HOSTS` updated to `https://`
+- CA cert mounted into all containers that connect to ES
+
+**Logstash note:** the Logstash pipeline uses a hardcoded `http://` host. For full TLS, create a separate `logstash/pipelines/transaction_ingest_tls.conf` with `ssl_enabled => true` and `ssl_certificate_authorities => ["/usr/share/logstash/config/certs/ca.crt"]` and mount it instead.
+
+**Production note:** replace the self-signed certs with certificates from a trusted CA (Let's Encrypt, AWS ACM, or corporate PKI) before any production deployment.
 
 ---
 
