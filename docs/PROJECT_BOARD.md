@@ -19,7 +19,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## 🏃 IN PROGRESS
 
-*(Empty — Day 12 complete)*
+*(Empty — Day 13 complete)*
 
 ---
 
@@ -78,6 +78,17 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `results/acceptance_test_report.md` — full AT-1–AT-10 evidence report
   - [x] `docs/requirements_traceability_matrix.md` — updated with Day 12 pass/fail status for all 10 ATs
   - [x] Run command: `pytest tests/test_acceptance.py -v -m "not integration"` → 32 passed in 2.56s
+
+- [x] **Live Integration Tests + Security Review — Day 13**
+  - [x] Brought up full Docker stack (ES, Kibana, Logstash, lstm-serving) and fixed 7 blocking issues:
+    Logstash 8.11 DSL parse error, xpack monitoring 401s, Kibana service-account token requirement,
+    `LOGSTASH_HOST` Docker networking, `json_lines` codec format, RBAC `auto_configure` denial, wrong test usernames
+  - [x] `tests/test_acceptance.py -v` (full suite, no marker filter) → **35/35 PASS in 3.43s**
+  - [x] `results/acceptance_test_report.md` — updated AT-1/AT-6/AT-9 from Integration to PASS with live evidence
+  - [x] `docs/requirements_traceability_matrix.md` — updated to 35/35 PASS
+  - [x] `results/security_review.md` — credential/secret scan (no leaked secrets, `.env` correctly gitignored)
+  - [x] `results/zap_report.html` — OWASP ZAP baseline scan vs Vercel deployment: **0 FAIL, 6 WARN (low/info), 60 PASS**
+  - [x] `feature/day13-security-merge` branch created for this work
 
 - [x] **US-07:** React SOC Dashboard — Day 11 (accessibility + live polling)
   - [x] `useElasticPolling.ts` — polls ES every 5s in dev via Vite proxy; graceful mock fallback on Vercel

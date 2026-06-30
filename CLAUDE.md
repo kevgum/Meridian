@@ -45,7 +45,7 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 | React dashboard (Day 11) | ✅ Done | Live ES polling, WCAG 2.2 AA, session timeout, drawer, re-deployed |
 | Acceptance tests (Day 12) | ✅ Done | 35/35 PASS with live stack; 32/35 without Docker |
 
-Active branch: `feature/lstm-model`  
+Active branch: `main`  
 Main branch: `main`
 
 ---
@@ -55,6 +55,16 @@ Main branch: `main`
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Acceptance tests | ✅ Done | `tests/test_acceptance.py` — 35/35 PASS (3.43s with live stack; 32/35 unit-only) |
+
+---
+
+## Current State (as of Day 13 complete)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Live integration tests | ✅ Done | 35/35 PASS with full Docker stack (`results/acceptance_test_report.md`) |
+| Security review | ✅ Done | Credential scan clean; ZAP baseline 0 FAIL / 6 WARN low-info (`results/security_review.md`) |
+| Prototype tag | ✅ Done | `v1.0.0-prototype` on `main` |
 
 ---
 
