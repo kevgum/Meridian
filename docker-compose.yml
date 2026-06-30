@@ -49,15 +49,17 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./models/serving/lstm_v1:/models:ro
+      - ./models/lstm_checkpoint_best.pt:/checkpoint/lstm_checkpoint_best.pt:ro
+      - ./models/serving/lstm_v1:/models
     environment:
       - MODEL_PATH=/models/lstm_fraud_detector.onnx
+      - CHECKPOINT_PATH=/checkpoint/lstm_checkpoint_best.pt
       - DECISION_THRESHOLD=${DECISION_THRESHOLD:-0.90}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/v1/models/lstm')"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
 
   feature-engineering:
     image: python:3.11-slim

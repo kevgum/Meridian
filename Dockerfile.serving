@@ -2,23 +2,35 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install torch (CPU-only, ~200 MB) for ONNX conversion + onnxruntime for serving
 RUN pip install --no-cache-dir \
-    fastapi==0.111.0 \
-    uvicorn[standard]==0.29.0 \
+    torch==2.3.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir \
+    onnx==1.16.1 \
     onnxruntime==1.18.0 \
+    fastapi==0.111.0 \
+    "uvicorn[standard]==0.29.0" \
     numpy==1.26.4 \
-    pydantic==2.7.1
+    pydantic==2.7.1 \
+    pyyaml==6.0.1
 
+# Copy source needed for conversion and serving
+COPY src/models/lstm_model.py /app/lstm_model.py
+COPY config/model_config.yaml /app/model_config.yaml
 COPY src/serving/app.py /app/app.py
+COPY docker/convert_to_onnx.py /app/convert_to_onnx.py
 
-# Model is mounted at runtime via docker-compose volume:
-#   ./models/serving/lstm_v1:/models
+# Model checkpoint is mounted at /checkpoint/lstm_checkpoint_best.pt
+# ONNX output goes to /models/lstm_fraud_detector.onnx
 ENV MODEL_PATH=/models/lstm_fraud_detector.onnx
+ENV CHECKPOINT_PATH=/checkpoint/lstm_checkpoint_best.pt
 ENV DECISION_THRESHOLD=0.90
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/v1/models/lstm')"
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+# Convert .pt → .onnx at startup if ONNX not already present, then serve
+CMD ["sh", "-c", "python convert_to_onnx.py && uvicorn app:app --host 0.0.0.0 --port 8080"]
