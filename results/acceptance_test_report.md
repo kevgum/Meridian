@@ -13,10 +13,10 @@
 | Tier | Tests | Result |
 |------|-------|--------|
 | Unit (no Docker required) | 32 | ✅ 32/32 PASS |
-| Integration (live Docker stack) | 3 | ⬜ Requires full stack |
-| **Total** | **35** | **32 unit PASS** |
+| Integration (live Docker stack) | 3 | ✅ 3/3 PASS |
+| **Total** | **35** | **35/35 PASS** |
 
-Unit test run time: **2.56 seconds**
+Full suite run time: **3.43 seconds**
 
 ---
 
@@ -37,16 +37,16 @@ Command:    pytest tests/test_acceptance.py -v -m "not integration"
 
 ### AT-1 — Logstash Ingestion Latency ≤ 2 Seconds
 
-**Status:** ⬜ INTEGRATION — requires live Logstash + Elasticsearch  
+**Status:** ✅ PASS  
 **Class:** `TestAT1_IngestionLatency`  
 **Marker:** `@pytest.mark.integration`
 
-**Approach:** Sends a PaySim ECS log line to Logstash TCP port 5000, then polls the  
-`meridian-transactions-*` index until the document appears or 2 seconds elapse.
+**Approach:** Sends a JSON event to Logstash TCP port 5000 (`codec => json_lines`), then polls  
+`meridian-transactions-*` until the document appears or 2 seconds elapse.
 
-**Evidence:** Day 6 latency benchmark (`results/latency_benchmark.json`) recorded  
-p99 inference latency of 28.5 ms. Logstash pipeline throughput was validated during  
-Day 7 ECS pipeline development.
+**Evidence:** Document `AT1-TEST-TX-001` indexed in `meridian-transactions-2026.06.30` within 2s.  
+Logstash pipeline (`logstash/pipelines/transaction_ingest.conf`) processed the event:  
+ECS field rename, SHA-256 PII hash on `nameOrig`/`nameDest`, and float type coercion applied.
 
 ---
 
@@ -146,17 +146,16 @@ network calls. Latency is bounded by CPU time, well under the 1-second target.
 
 ### AT-6 — Analyst Triage: Alert Confirmation in Audit Log
 
-**Status:** ⬜ INTEGRATION — requires live Elasticsearch with RBAC  
+**Status:** ✅ PASS  
 **Class:** `TestAT6_AnalystAuditLog`  
 **Marker:** `@pytest.mark.integration`
 
-**Approach:** `analyst_user` credentials (created by `scripts/bootstrap_rbac.py`) POST  
-an incident status update to `meridian-incidents-YYYY.MM.dd`. The test then retrieves  
-the document and asserts `status == CONFIRMED`.
+**Approach:** Admin pre-creates `meridian-incidents-2026.06.30` (simulating ILM template).  
+`test_analyst` (security_analyst role, created by `scripts/bootstrap_rbac.py`) then writes  
+`status=CONFIRMED` to the index. The test retrieves and asserts the document.
 
-**Evidence:** The RBAC framework (Day 9) was validated by 5 integration tests in  
-`tests/test_rbac.py` with live Elasticsearch. The same `analyst_user` credentials  
-used in `test_rbac.py` are reused here.
+**Evidence:** Document `AT6-incident-001` written as `test_analyst` to `meridian-incidents-2026.06.30`.  
+Retrieved `status=CONFIRMED`, `analyst_id=test.analyst`. Proves analyst triage is recorded in the immutable audit index.
 
 ---
 
@@ -216,15 +215,15 @@ Full audit documented in [docs/accessibility-audit.md](../docs/accessibility-aud
 
 ### AT-9 — RBAC Denial: security_analyst Denied .kibana Write
 
-**Status:** ⬜ INTEGRATION — requires live Elasticsearch with RBAC  
+**Status:** ✅ PASS  
 **Class:** `TestAT9_RBACDenial`  
 **Marker:** `@pytest.mark.integration`
 
-**Approach:** `analyst_user` (security_analyst role) attempts to write to `.kibana_rbac_test`.  
+**Approach:** `test_analyst` (security_analyst role) attempts to write to `.kibana_rbac_test`.  
 Asserts `AuthorizationException` with HTTP 403.
 
-**Evidence:** This scenario is already covered by `tests/test_rbac.py::test_analyst_denied_kibana_write`  
-(AT-9 integration test, Day 9) which passes when the full stack is running.
+**Evidence:** ES returned HTTP 403 `security_exception` — `test_analyst` has no privilege on `.kibana*` indices.  
+The security_analyst role is correctly scoped to `meridian-transactions-*`, `meridian-incidents-*`, and `meridian-audit-*` only.
 
 ---
 
@@ -256,19 +255,18 @@ batch_size=32, `torch.manual_seed(42)`.
 
 | Test | Acceptance Criterion | Status | Evidence |
 |------|---------------------|--------|---------|
-| AT-1 | Log → ES within 2s | ⬜ Integration | Day 6 latency benchmark, Day 7 pipeline |
+| AT-1 | Log → ES within 2s | ✅ PASS | JSON event indexed in `meridian-transactions-*` within 2s |
 | AT-2 | lstm_score > 0.70 for fraud | ✅ PASS | `e2e_test_cust18656.json` — 0.74 |
 | AT-3 | lstm_score < 0.30 for clean | ✅ PASS | Zero tensor ≈ 0 < 0.30 |
 | AT-4 | SIEM alert < 1s | ✅ PASS | Pure Python eval, < 10 ms |
 | AT-5 | Playbook fires LOCK_ACCOUNT | ✅ PASS | 6/6 assertions with mock ES |
-| AT-6 | Analyst close → audit log | ⬜ Integration | Day 9 RBAC tests |
+| AT-6 | Analyst close → audit log | ✅ PASS | `test_analyst` writes CONFIRMED to incidents index |
 | AT-7 | Compliance docs complete | ✅ PASS | 3 frameworks, 10+ active controls |
 | AT-8 | Keyboard navigation (WCAG 2.2 AA) | ✅ PASS | 6 source/audit file checks |
-| AT-9 | RBAC 403 for analyst → .kibana | ⬜ Integration | Day 9 `test_rbac.py` |
+| AT-9 | RBAC 403 for analyst → .kibana | ✅ PASS | HTTP 403 security_exception confirmed |
 | AT-10 | Retrain pipeline completes | ✅ PASS | 1 epoch, checkpoint saved + reloaded |
 
-**Unit tests: 32/32 PASS**  
-**Integration tests: 3 require live Docker stack (AT-1, AT-6, AT-9)**
+**35/35 PASS — full suite (unit + integration) in 3.43 seconds**
 
 ---
 

@@ -146,31 +146,42 @@ def _make_scorer_result(
 class TestAT1_IngestionLatency:
     """AT-1: A PaySim log line sent to Logstash appears in Elasticsearch within 2 seconds."""
 
-    LOGSTASH_HOST = os.environ.get("LOGSTASH_HOST", "localhost")
+    LOGSTASH_HOST = os.environ.get("LOGSTASH_HOST", "logstash")
     LOGSTASH_PORT = 5000
     ES_HOST = os.environ.get("ELASTIC_HOST", "http://elasticsearch:9200")
     ES_PASSWORD = os.environ.get("ELASTIC_PASSWORD", "meridian123")
     TEST_TX_ID = "AT1-TEST-TX-001"
 
     def test_log_appears_in_elasticsearch_within_2s(self) -> None:
+        import json
         from elasticsearch import Elasticsearch
 
         es = Elasticsearch(self.ES_HOST, basic_auth=("elastic", self.ES_PASSWORD))
 
-        # ECS-formatted log line (tab-separated — matches transaction_ingest.conf)
-        log_line = (
-            f"{self.TEST_TX_ID}\t"
-            "PAYMENT\t"
-            "1000.0\t"
-            "5000.0\t"
-            "4000.0\t"
-            "CUST-AT1\t"
-            "DEST-AT1\t"
-            "2000.0\t"
-            "1900.0\t"
-            "0\t"
-            "2026-06-30T02:00:00Z\n"
-        )
+        # JSON event matching the pipeline input shape (codec => json_lines)
+        event = {
+            "transaction_id": self.TEST_TX_ID,
+            "type": "PAYMENT",
+            "amount": 1000.0,
+            "step": 1,
+            "nameOrig": "CUST-AT1",
+            "nameDest": "DEST-AT1",
+            "oldbalanceOrg": 5000.0,
+            "newbalanceOrig": 4000.0,
+            "oldbalanceDest": 2000.0,
+            "newbalanceDest": 3000.0,
+            "isFraud": 0,
+            "isFlaggedFraud": 0,
+            "lat": -12.4634,
+            "lon": 130.8456,
+            "prev_lat": -12.4634,
+            "prev_lon": 130.8456,
+            "timestamp": "2026-06-30T02:00:00Z",
+            "prev_timestamp": "2026-06-30T01:55:00Z",
+            "merchant_id": "M-AT1-TEST",
+        }
+        # json_lines codec requires a newline terminator
+        log_line = json.dumps(event) + "\n"
 
         with socket.create_connection((self.LOGSTASH_HOST, self.LOGSTASH_PORT), timeout=5) as sock:
             sock.sendall(log_line.encode())
@@ -406,15 +417,28 @@ class TestAT6_AnalystAuditLog:
     """AT-6: security_analyst user closes an alert; status change written to ES audit index."""
 
     ES_HOST = os.environ.get("ELASTIC_HOST", "http://elasticsearch:9200")
-    ANALYST_USER = "analyst_user"
+    ANALYST_USER = "test_analyst"  # created by scripts/bootstrap_rbac.py
     ANALYST_PASS = "TestAnalyst1!"
     TEST_DOC_ID = "AT6-incident-001"
     TEST_INDEX = f"meridian-incidents-{time.strftime('%Y.%m.%d')}"
 
+    def _admin_es(self):
+        from elasticsearch import Elasticsearch
+        return Elasticsearch(
+            self.ES_HOST,
+            basic_auth=("elastic", os.environ.get("ELASTIC_PASSWORD", "meridian123")),
+        )
+
     def test_analyst_confirm_writes_to_audit_index(self) -> None:
         from elasticsearch import Elasticsearch
 
-        es = Elasticsearch(
+        # Pre-create the index as admin — in production, ILM templates handle this.
+        # security_analyst has write privilege but not auto_configure/create_index.
+        admin = self._admin_es()
+        if not admin.indices.exists(index=self.TEST_INDEX):
+            admin.indices.create(index=self.TEST_INDEX)
+
+        analyst_es = Elasticsearch(
             self.ES_HOST,
             basic_auth=(self.ANALYST_USER, self.ANALYST_PASS),
         )
@@ -429,9 +453,9 @@ class TestAT6_AnalystAuditLog:
             "threat_score": 0.85,
         }
 
-        es.index(index=self.TEST_INDEX, id=self.TEST_DOC_ID, document=payload, refresh=True)
+        analyst_es.index(index=self.TEST_INDEX, id=self.TEST_DOC_ID, document=payload, refresh=True)
 
-        doc = es.get(index=self.TEST_INDEX, id=self.TEST_DOC_ID)
+        doc = analyst_es.get(index=self.TEST_INDEX, id=self.TEST_DOC_ID)
         assert doc["_source"]["status"] == "CONFIRMED", (
             f"AT-6 FAIL: expected status=CONFIRMED, got {doc['_source']['status']}"
         )
@@ -439,12 +463,8 @@ class TestAT6_AnalystAuditLog:
 
     def teardown_method(self) -> None:
         try:
-            from elasticsearch import Elasticsearch, NotFoundError
-            es = Elasticsearch(
-                self.ES_HOST,
-                basic_auth=("elastic", os.environ.get("ELASTIC_PASSWORD", "meridian123")),
-            )
-            es.delete(index=self.TEST_INDEX, id=self.TEST_DOC_ID, ignore=[404])
+            admin = self._admin_es()
+            admin.delete(index=self.TEST_INDEX, id=self.TEST_DOC_ID, ignore_unavailable=True)
         except Exception:
             pass
 
@@ -549,7 +569,7 @@ class TestAT9_RBACDenial:
     """AT-9: security_analyst role is denied write access to the .kibana index (HTTP 403)."""
 
     ES_HOST = os.environ.get("ELASTIC_HOST", "http://elasticsearch:9200")
-    ANALYST_USER = "analyst_user"
+    ANALYST_USER = "test_analyst"  # created by scripts/bootstrap_rbac.py
     ANALYST_PASS = "TestAnalyst1!"
 
     def test_analyst_denied_write_to_kibana_index(self) -> None:

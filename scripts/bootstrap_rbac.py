@@ -245,7 +245,31 @@ def create_api_key(es: Elasticsearch) -> str:
         return ""
 
 
-def print_summary(api_key: str) -> None:
+def create_kibana_service_token(es: Elasticsearch) -> str:
+    """Create a Kibana service account token for ES 8.11+ compatibility.
+
+    ES 8.11 forbids using the elastic superuser as the Kibana credential.
+    The service account token is the supported replacement.
+
+    Returns:
+        The token value to store in .env as KIBANA_SERVICE_TOKEN.
+    """
+    print("\n── Creating Kibana service account token ───────────────────")
+    try:
+        response = es.perform_request(
+            method="POST",
+            path="/_security/service/elastic/kibana/credential/token/kibana-token-1",
+        )
+        token_value = response.body["token"]["value"]
+        print("  ✅ Kibana service account token created")
+        return token_value
+    except Exception as exc:
+        # Token may already exist — not fatal; Kibana will use the existing token
+        print(f"  ⚠️  Token may already exist (safe to ignore): {exc}")
+        return ""
+
+
+def print_summary(api_key: str, kibana_token: str) -> None:
     """Print a summary of what was created and next steps."""
     print("\n── Summary ─────────────────────────────────────────────────")
     print("  6 roles created:   security_analyst, senior_security_engineer,")
@@ -256,6 +280,10 @@ def print_summary(api_key: str) -> None:
     if api_key:
         print(f"\n  ⚠️  Add this to your .env file:")
         print(f"  ELASTIC_API_KEY={api_key}")
+    if kibana_token:
+        print(f"\n  ⚠️  Add this to your .env file (required for Kibana 8.11+):")
+        print(f"  KIBANA_SERVICE_TOKEN={kibana_token}")
+        print("  Then restart Kibana: docker compose restart kibana")
     print("\n  Run RBAC verification tests:")
     print("  docker compose --profile dev run --rm dev pytest tests/test_rbac.py -v -m integration")
     print("────────────────────────────────────────────────────────────\n")
@@ -282,7 +310,8 @@ def main() -> None:
     create_roles(es)
     create_users(es)
     api_key = create_api_key(es)
-    print_summary(api_key)
+    kibana_token = create_kibana_service_token(es)
+    print_summary(api_key, kibana_token)
 
 
 if __name__ == "__main__":

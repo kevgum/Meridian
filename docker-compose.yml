@@ -22,11 +22,12 @@ services:
       - "5601:5601"
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:-meridian123}
+      # ES 8.11 forbids the elastic superuser for Kibana — use a service account token.
+      # Run scripts/bootstrap_rbac.py after first stack start to create this token,
+      # then set KIBANA_SERVICE_TOKEN in .env.
+      - ELASTICSEARCH_SERVICEACCOUNTTOKEN=${KIBANA_SERVICE_TOKEN:-}
       # PCI DSS Req 8.2.8 — idle session timeout: 15 minutes
       - xpack.security.session.idleTimeout=15m
-      # Maximum session lifetime regardless of activity: 24 hours
       - xpack.security.session.lifespan=24h
     depends_on:
       elasticsearch:
@@ -40,6 +41,8 @@ services:
       - ./logstash/pipelines/transaction_ingest.conf:/usr/share/logstash/pipeline/logstash.conf
     environment:
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-meridian123}
+      # Disable xpack monitoring to avoid 401 errors when no monitoring cluster is configured
+      - xpack.monitoring.enabled=false
     depends_on:
       elasticsearch:
         condition: service_healthy
