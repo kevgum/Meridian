@@ -32,11 +32,13 @@ Read these documents in order. Each one builds on the previous.
 | 6 | [`docs/model-serving.md`](docs/model-serving.md) | If touching the LSTM API or Docker setup | How ONNX conversion works, Dockerfile walkthrough, API reference, latency results |
 | 7 | [`docs/training-notes.md`](docs/training-notes.md) | If touching model training | History of training runs, the pos_weight collapse bug, threshold tuning decisions |
 | 8 | [`docs/colab-guide.md`](docs/colab-guide.md) | Only if retraining the model | Step-by-step Colab walkthrough, what to download, where files go |
-| 9 | [`CLAUDE.md`](CLAUDE.md) | Only if using Claude as your AI assistant | AI session context, locked decisions, architecture summary |
+| 9 | [`compliance/control_mapping.md`](compliance/control_mapping.md) | Before any compliance or assessment work | Full APRA CPS 234, PCI DSS v4.0, and Privacy Act control mapping with status |
+| 10 | [`CLAUDE.md`](CLAUDE.md) | Only if using Claude as your AI assistant | AI session context, locked decisions, architecture summary |
 
 **Minimum read for a new team member:** documents 1–5.  
 **Before touching the ML pipeline:** add 6 and 7.  
-**Before retraining:** add 8.
+**Before retraining:** add 8.  
+**Before any compliance or assessment work:** add 9.
 
 ---
 

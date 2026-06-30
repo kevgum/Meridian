@@ -179,6 +179,7 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | [docs/training-notes.md](docs/training-notes.md) | Training history + decisions |
 | [docs/model-serving.md](docs/model-serving.md) | ONNX conversion + Docker serving — full technical reference |
 | [docs/colab-guide.md](docs/colab-guide.md) | Step-by-step Colab training + download instructions |
+| [compliance/control_mapping.md](compliance/control_mapping.md) | APRA CPS 234, PCI DSS v4.0, Privacy Act control mapping with status |
 | [src/siem/rule_engine.py](src/siem/rule_engine.py) | ElasticSIEMCorrelator — 4 SIEM rules + score normalisation |
 | [watchlist/merchants.json](watchlist/merchants.json) | Known-bad merchant IDs (Rule 4 seed data, 20 entries) |
 | [logstash/pipelines/transaction_ingest.conf](logstash/pipelines/transaction_ingest.conf) | Full ECS pipeline — SHA-256 PII hash, field mapping, ES output |
