@@ -1,0 +1,19 @@
+{
+  "model": "LSTMFraudDetector v1",
+  "threshold": 0.1,
+  "test_samples": 299863,
+  "fraud_samples": 387,
+  "detection_accuracy": 0.001291,
+  "false_positive_rate": 1.0,
+  "precision": 0.001291,
+  "recall": 1.0,
+  "f1_score": 0.002578,
+  "true_positives": 387,
+  "true_negatives": 0,
+  "false_positives": 299476,
+  "false_negatives": 0,
+  "targets_met": {
+    "accuracy_gte_9855": false,
+    "fpr_lte_050_pct": false
+  }
+}
