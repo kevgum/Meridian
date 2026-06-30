@@ -345,5 +345,7 @@ The `lstm-serving` container is not running or not yet healthy. Run `docker comp
 - **Architecture questions** → read [docs/architecture.md](docs/architecture.md)
 - **Task status** → read [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md)
 - **Training history + model decisions** → read [docs/training-notes.md](docs/training-notes.md)
+- **Colab training walkthrough** → read [docs/colab-guide.md](docs/colab-guide.md)
+- **ONNX conversion + serving infrastructure** → read [docs/model-serving.md](docs/model-serving.md)
 - **Using Claude** → read [CLAUDE.md](CLAUDE.md) at the project root
 - **Team communication** → Microsoft Teams (Meridian Sentinel channel)

@@ -163,6 +163,8 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md) | Kanban — what's done vs in progress |
 | [docs/architecture.md](docs/architecture.md) | Full system architecture |
 | [docs/training-notes.md](docs/training-notes.md) | Training history + decisions |
+| [docs/model-serving.md](docs/model-serving.md) | ONNX conversion + Docker serving — full technical reference |
+| [docs/colab-guide.md](docs/colab-guide.md) | Step-by-step Colab training + download instructions |
 | [logstash/pipelines/transaction_ingest.conf](logstash/pipelines/transaction_ingest.conf) | Logstash pipeline (placeholder) |
 
 ---
