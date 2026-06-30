@@ -8,6 +8,7 @@ Run:
     pytest tests/test_inference_api.py -v
 """
 
+import os
 import time
 import numpy as np
 import pytest
@@ -15,7 +16,9 @@ import requests
 
 from src.inference_client import LSTMInferenceClient
 
-BASE_URL = "http://localhost:8080"
+# Read from env so the Docker dev container uses http://lstm-serving:8080
+# while local runs outside Docker fall back to http://localhost:8080
+BASE_URL = os.environ.get("LSTM_SERVING_URL", "http://localhost:8080")
 THRESHOLD = 0.90
 
 
