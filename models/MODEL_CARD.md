@@ -8,7 +8,7 @@
 | Framework | PyTorch (training) / ONNX (inference) |
 | Input shape | [batch, 5, 12] — 5-transaction sequence, 12 engineered features |
 | Output | Scalar logit → sigmoid → anomaly probability [0, 1] |
-| Decision threshold | 0.1 |
+| Decision threshold | 0.5 |
 | Version | 1.0.0 |
 | Training date | 2026-06-30 |
 
@@ -19,18 +19,18 @@
 
 Pre-processing: SHA-256 PII obfuscation, 12-feature engineering, MinMaxScaler normalisation,
 sliding window sequences (length=5 per customer). Train/Val/Test split: 70/15/15 stratified.
-Class imbalance handled with BCEWithLogitsLoss(pos_weight=773.4).
+Class imbalance handled with BCEWithLogitsLoss(pos_weight=1.0).
 
 ## Performance on Test Set
 | Metric | Value | Target |
 |---|---|---|
-| Detection Accuracy | 0.1291% | ≥ 98.55% |
-| False Positive Rate | 100.0000% | ≤ 0.50% |
-| Precision | 0.1291% | — |
-| Recall (TPR) | 100.0000% | — |
-| F1-Score | 0.0026 | — |
-| True Positives | 387 | — |
-| False Positives | 299476 | — |
+| Detection Accuracy | 88.4137% | ≥ 98.55% |
+| False Positive Rate | 11.5892% | ≤ 0.50% |
+| Precision | 1.0012% | — |
+| Recall (TPR) | 90.6977% | — |
+| F1-Score | 0.0198 | — |
+| True Positives | 351 | — |
+| False Positives | 34707 | — |
 
 ## Intended Use
 - **Primary use:** Fraud detection component of the Meridian Sentinel hybrid threat scorer
