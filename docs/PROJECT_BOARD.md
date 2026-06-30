@@ -19,7 +19,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## 🏃 IN PROGRESS
 
-*(Empty — Day 13 complete)*
+*(Empty — Day 14 complete — build finished)*
 
 ---
 
@@ -89,6 +89,14 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `results/security_review.md` — credential/secret scan (no leaked secrets, `.env` correctly gitignored)
   - [x] `results/zap_report.html` — OWASP ZAP baseline scan vs Vercel deployment: **0 FAIL, 6 WARN (low/info), 60 PASS**
   - [x] `feature/day13-security-merge` branch created for this work
+  - [x] Merged to `main`, tagged `v1.0.0-prototype`, pushed to origin
+
+- [x] **Documentation — Day 14**
+  - [x] `README.md` — updated to reflect Days 9–14; adds dashboard quickstart, RBAC bootstrap step, release table
+  - [x] `docs/analyst-guide.md` — SOC analyst triage workflow, panel descriptions, CUST-18656 walkthrough, keyboard navigation notes
+  - [x] `docs/runbook.md` — startup, RBAC bootstrap, health checks, retraining procedure, incident response, common failures, release procedure
+  - [x] `docs/retrospective.md` — 14-day retrospective: delivery summary, what went well, what went poorly, production hardening recommendations
+  - [x] `onboarding.md` — day-by-day status table brought current; doc reading order updated to include analyst guide and runbook
 
 - [x] **US-07:** React SOC Dashboard — Day 11 (accessibility + live polling)
   - [x] `useElasticPolling.ts` — polls ES every 5s in dev via Vite proxy; graceful mock fallback on Vercel

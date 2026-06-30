@@ -2,7 +2,8 @@
 
 > **Real-Time Threat Detection & Mitigation Prototype**  
 > Meridian Financial Services · ITW601 University Project  
-> Hybrid LSTM Neural Network + Elastic SIEM fraud detection system
+> Hybrid LSTM Neural Network + Elastic SIEM fraud detection system  
+> **Status:** `v1.0.0-prototype` — 14-day build complete, 35/35 acceptance tests passing
 
 ---
 
@@ -13,8 +14,19 @@ Meridian Sentinel detects financial fraud in real time by fusing two complementa
 - **LSTM Anomaly Detection** — a stacked PyTorch LSTM trained on 6.3M PaySim transactions; flags statistical deviations that rule-based systems miss
 - **Elastic SIEM** — 4 rule-based detectors (high amount, geo-velocity, off-hours, watchlist merchant)
 - **Hybrid Threat Scorer** — blends both scores (`lstm × 0.60 + siem × 0.40`); triggers automated playbook at ≥ 0.70
+- **Playbook Engine** — locks the account, opens an Elasticsearch incident record, and notifies the analyst when the playbook fires
+- **RBAC** — 6 Elasticsearch roles (security_analyst, senior_security_engineer, ml_operations, compliance_officer, system_administrator, read_only_auditor) enforce least-privilege access
+- **React SOC Dashboard** — live alert feed, LSTM/SIEM/hybrid score breakdown, investigation drawer, WCAG 2.2 AA compliant
 
-**Model performance:** 98.4% accuracy · 1.54% FPR · p99 inference latency 28.5 ms
+**Model performance:** 98.4% accuracy · 1.54% FPR · p99 inference latency 28.5 ms  
+**Acceptance tests:** 35/35 PASS (full suite, live Docker stack, 3.43s) — see [`results/acceptance_test_report.md`](results/acceptance_test_report.md)  
+**Security review:** Credential scan clean, OWASP ZAP baseline 0 FAIL / 6 low-info WARN — see [`results/security_review.md`](results/security_review.md)
+
+**More documentation:**
+- [docs/analyst-guide.md](docs/analyst-guide.md) — how a SOC analyst triages alerts on the dashboard
+- [docs/runbook.md](docs/runbook.md) — operational procedures (startup, RBAC bootstrap, retraining, incident response)
+- [docs/retrospective.md](docs/retrospective.md) — 14-day build retrospective
+- [onboarding.md](onboarding.md) — new team member setup guide
 
 ---
 
@@ -74,6 +86,32 @@ Expected final output:
   Logstash TCP        ->  localhost:5000
 ```
 
+After the stack is up, bootstrap RBAC roles and test users (one-time, idempotent):
+```bash
+pip install elasticsearch==8.11.0
+python scripts/bootstrap_rbac.py
+```
+
+---
+
+## Running the Dashboard
+
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:5173 — polls live Elasticsearch via Vite proxy
+```
+
+Production build:
+```bash
+npm run build
+npx vercel --prod     # requires `vercel login` first
+```
+
+Without a live stack the dashboard falls back to mock data automatically — see the top bar status indicator ("Connected to live Elasticsearch" vs "Demo mode — mock data").
+
+See [docs/analyst-guide.md](docs/analyst-guide.md) for how to use the dashboard to triage an alert.
+
 ---
 
 ## Running Tests and Tools Without the Startup Script
@@ -81,23 +119,26 @@ Expected final output:
 All dev commands run inside the `dev` Docker container — no local Python needed:
 
 ```bash
-# Full test suite (LSTM API + SIEM rule engine)
-docker compose --profile dev run --rm dev pytest tests/ -v
+# Full acceptance suite — 35 tests (AT-1 through AT-10), requires full stack
+docker compose --profile dev run --rm dev pytest tests/test_acceptance.py -v
 
-# SIEM unit tests only (no running containers required)
+# Unit-only acceptance tests — 32 tests, no Docker stack required
+docker compose --profile dev run --rm dev pytest tests/test_acceptance.py -v -m "not integration"
+
+# SIEM rule engine tests — 22 tests (no running containers required)
 docker compose --profile dev run --rm dev pytest tests/test_siem_rules.py -v
 
-# LSTM API smoke tests only (lstm-serving must be running)
+# Hybrid scorer + playbook engine tests — 29 tests (mocked ES, no container required)
+docker compose --profile dev run --rm dev pytest tests/test_hybrid_scorer.py -v
+
+# LSTM API smoke tests — 7 tests (lstm-serving must be running)
 docker compose --profile dev run --rm dev pytest tests/test_inference_api.py -v
+
+# RBAC integration tests (requires live ES + scripts/bootstrap_rbac.py already run)
+docker compose --profile dev run --rm dev pytest tests/test_rbac.py -v -m integration
 
 # Latency benchmark
 docker compose --profile dev run --rm dev python -m src.benchmark
-
-# Type checking
-docker compose --profile dev run --rm dev mypy src/
-
-# Linting
-docker compose --profile dev run --rm dev flake8 src/ tests/
 ```
 
 ---
@@ -143,13 +184,18 @@ Runs 100 sequential inference calls and reports min/mean/p50/p95/p99 latency. Sa
 
 ```
 Meridaian/
+├── compliance/
+│   └── control_mapping.md         # APRA CPS 234, PCI DSS v4.0, Privacy Act control mapping
 ├── config/
 │   └── model_config.yaml          # LSTM hyperparameters (epochs, features, thresholds)
 ├── docker/
 │   └── convert_to_onnx.py         # .pt → .onnx conversion (runs at container startup)
-├── docs/                          # Architecture, implementation plan, project board
+├── docs/                          # Architecture, analyst guide, runbook, retrospective
+├── frontend/                      # React + TypeScript + Tailwind SOC dashboard (Vite)
+│   └── src/components/            # TopBar, TransactionFeed, DetectionPanel, AlertQueue,
+│                                   # HybridChart, ComplianceBadges, InvestigateDrawer
 ├── logstash/pipelines/
-│   └── transaction_ingest.conf    # Logstash ECS normalisation pipeline
+│   └── transaction_ingest.conf    # Logstash ECS normalisation + SHA-256 PII hash pipeline
 ├── models/
 │   ├── lstm_checkpoint_best.pt    # Best model checkpoint (committed)
 │   ├── lstm_final.pt              # Final epoch checkpoint
@@ -162,19 +208,27 @@ Meridaian/
 ├── results/
 │   ├── final_metrics.json         # threshold=0.90, accuracy=98.4%, FPR=1.54%
 │   ├── latency_benchmark.json     # p99=28.5ms
+│   ├── acceptance_test_report.md  # AT-1–AT-10 evidence, 35/35 PASS
+│   ├── security_review.md         # Credential scan + OWASP ZAP baseline results
 │   └── figures/                   # training_curves.png, confusion_matrix.png
+├── scripts/
+│   └── bootstrap_rbac.py          # Creates 6 ES roles, test users, API key, Kibana token
 ├── src/
 │   ├── models/lstm_model.py       # LSTMFraudDetector PyTorch class
 │   ├── serving/app.py             # FastAPI inference API
 │   ├── siem/rule_engine.py        # ElasticSIEMCorrelator — 4 SIEM detection rules
+│   ├── siem/hybrid_scorer.py      # HybridThreatScorer — blends LSTM + SIEM
+│   ├── siem/playbook_engine.py    # PlaybookEngine — incident record + analyst notify
 │   ├── inference_client.py        # REST client wrapper
 │   └── pipeline/                  # Feature engineering service
 ├── watchlist/
 │   └── merchants.json             # Known-bad merchant IDs (SIEM Rule 4)
 ├── tests/
-│   ├── test_inference_api.py      # 7 LSTM smoke tests (all passing)
-│   ├── test_siem_rules.py         # 22 SIEM rule unit tests (all passing)
-│   └── test_acceptance.py         # AT-1 through AT-10 (Day 12)
+│   ├── test_inference_api.py      # 7 LSTM smoke tests
+│   ├── test_siem_rules.py         # 22 SIEM rule unit tests
+│   ├── test_hybrid_scorer.py      # 29 hybrid scorer + playbook tests
+│   ├── test_rbac.py               # RBAC integration tests
+│   └── test_acceptance.py         # AT-1 through AT-10 — 35/35 PASS
 ├── .env.example                   # Environment variable template
 ├── docker-compose.yml             # Full stack orchestration
 ├── Dockerfile.serving             # LSTM inference container
@@ -237,4 +291,19 @@ lsof -i :8080                         # Mac/Linux
 ## Compliance
 
 APRA CPS 234 · PCI DSS v4.0 · Australian Privacy Act 1988  
-See [docs/architecture.md](docs/architecture.md) Section 8 for the full control mapping.
+See [compliance/control_mapping.md](compliance/control_mapping.md) and [docs/architecture.md](docs/architecture.md) Section 8 for the full control mapping.
+
+---
+
+## Release
+
+Tagged `v1.0.0-prototype` on `main` — Day 13. Full evidence trail:
+
+| Evidence | File |
+|----------|------|
+| Acceptance tests (35/35 PASS) | [results/acceptance_test_report.md](results/acceptance_test_report.md) |
+| Requirements traceability (US-01–US-11 → AT-1–AT-10) | [docs/requirements_traceability_matrix.md](docs/requirements_traceability_matrix.md) |
+| Security review (credential scan + OWASP ZAP) | [results/security_review.md](results/security_review.md) |
+| Accessibility audit (WCAG 2.2 AA) | [docs/accessibility-audit.md](docs/accessibility-audit.md) |
+| Model card | [models/MODEL_CARD.md](models/MODEL_CARD.md) |
+| Retrospective | [docs/retrospective.md](docs/retrospective.md) |

@@ -33,12 +33,16 @@ Read these documents in order. Each one builds on the previous.
 | 7 | [`docs/training-notes.md`](docs/training-notes.md) | If touching model training | History of training runs, the pos_weight collapse bug, threshold tuning decisions |
 | 8 | [`docs/colab-guide.md`](docs/colab-guide.md) | Only if retraining the model | Step-by-step Colab walkthrough, what to download, where files go |
 | 9 | [`compliance/control_mapping.md`](compliance/control_mapping.md) | Before any compliance or assessment work | Full APRA CPS 234, PCI DSS v4.0, and Privacy Act control mapping with status |
-| 10 | [`CLAUDE.md`](CLAUDE.md) | Only if using Claude as your AI assistant | AI session context, locked decisions, architecture summary |
+| 10 | [`docs/analyst-guide.md`](docs/analyst-guide.md) | Before using the SOC dashboard | How to triage alerts, read threat scores, and use the investigation drawer |
+| 11 | [`docs/runbook.md`](docs/runbook.md) | Before operating the stack | Startup, RBAC bootstrap, retraining procedure, incident response, common failures |
+| 12 | [`CLAUDE.md`](CLAUDE.md) | Only if using Claude as your AI assistant | AI session context, locked decisions, architecture summary |
 
 **Minimum read for a new team member:** documents 1–5.  
 **Before touching the ML pipeline:** add 6 and 7.  
 **Before retraining:** add 8.  
-**Before any compliance or assessment work:** add 9.
+**Before any compliance or assessment work:** add 9.  
+**Before triaging alerts on the dashboard:** add 10.  
+**Before operating the stack:** add 11.
 
 ---
 
@@ -311,12 +315,12 @@ These decisions are final — do not re-open them without talking to the team:
 | 5 | Evaluation (threshold tuning + ONNX export) | ✅ Done |
 | 6 | ONNX Runtime + FastAPI serving (Docker) | ✅ Done — 7/7 tests pass, p99=28.5ms |
 | 7 | Elastic SIEM + rule engine | ✅ Done — 22/22 tests pass, ECS Logstash pipeline live |
-| 8 | Hybrid threat scorer + playbook engine | ✅ Done — 29/29 tests pass, dual-threshold logic, CUST-18656 validated |
-| 9 | RBAC + compliance mapping | ⬜ Not started |
-| 10–11 | React analyst dashboard | ⬜ Not started |
-| 12 | Acceptance test suite (AT-1 through AT-10) | ⬜ Not started |
-| 13 | Security review + documentation | ⬜ Not started |
-| 14 | Final handover + deployment guide | ⬜ Not started |
+| 8 | Hybrid threat scorer + playbook engine | ✅ Done — 29/29 tests pass, CUST-18656 validated, LSTM_ALONE path added |
+| 9 | RBAC + compliance mapping | ✅ Done — 6 roles, bootstrap script, compliance control mapping |
+| 10–11 | React analyst dashboard | ✅ Done — live ES polling, WCAG 2.2 AA, session timeout, investigation drawer, Vercel deployed |
+| 12 | Acceptance test suite (AT-1 through AT-10) | ✅ Done — 35 tests, 32/35 pass without Docker |
+| 13 | Live integration tests + security review | ✅ Done — 35/35 PASS, ZAP 0 FAIL / 6 low-info WARN, `v1.0.0-prototype` tagged |
+| 14 | README, analyst guide, runbook, retrospective | ✅ Done |
 
 ---
 

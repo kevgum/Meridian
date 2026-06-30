@@ -68,6 +68,19 @@ Main branch: `main`
 
 ---
 
+## Current State (as of Day 14 complete)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| README.md | ✅ Done | Updated to Days 9–14; adds dashboard quickstart, RBAC bootstrap, release table |
+| Analyst guide | ✅ Done | `docs/analyst-guide.md` — full triage workflow, CUST-18656 walkthrough |
+| Runbook | ✅ Done | `docs/runbook.md` — startup, RBAC, retraining, incident response, failures |
+| Retrospective | ✅ Done | `docs/retrospective.md` — what worked, gaps, production hardening notes |
+
+**14-day build complete. `v1.0.0-prototype` on `main`.**
+
+---
+
 ## Architecture in One Page
 
 ```
