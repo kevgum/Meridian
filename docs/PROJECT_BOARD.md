@@ -19,7 +19,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## 🏃 IN PROGRESS
 
-*(Empty — Day 10 complete)*
+*(Empty — Day 12 complete)*
 
 ---
 
@@ -69,6 +69,15 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `tests/test_hybrid_scorer.py` — 29/29 unit tests passing (mocked ES, no container required)
   - [x] `results/e2e_test_cust18656.json` — CUST-18656 validation scenario documented
   - [x] Full suite: 60/60 tests passing (all days combined)
+
+- [x] **Acceptance Testing — Day 12**
+  - [x] `tests/test_acceptance.py` — 10 ATs (AT-1 through AT-10) in one file
+  - [x] Unit tier (32 tests, no Docker): AT-2, AT-3, AT-4, AT-5, AT-7, AT-8, AT-10 — **32/32 PASS**
+  - [x] Integration tier (3 tests): AT-1 (Logstash latency), AT-6 (analyst audit), AT-9 (RBAC denial) — require `docker compose up`
+  - [x] `Dockerfile.dev` — added `torch==2.3.0+cpu` so AT-2/AT-3/AT-10 run in dev container
+  - [x] `results/acceptance_test_report.md` — full AT-1–AT-10 evidence report
+  - [x] `docs/requirements_traceability_matrix.md` — updated with Day 12 pass/fail status for all 10 ATs
+  - [x] Run command: `pytest tests/test_acceptance.py -v -m "not integration"` → 32 passed in 2.56s
 
 - [x] **US-07:** React SOC Dashboard — Day 11 (accessibility + live polling)
   - [x] `useElasticPolling.ts` — polls ES every 5s in dev via Vite proxy; graceful mock fallback on Vercel

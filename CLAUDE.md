@@ -43,18 +43,18 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 | RBAC | ✅ Done | 6 roles, bootstrap script, AT-9 integration tests |
 | React dashboard (Day 10) | ✅ Done | Vite+TS, 6 components, mock data, Vercel-ready |
 | React dashboard (Day 11) | ✅ Done | Live ES polling, WCAG 2.2 AA, session timeout, drawer, re-deployed |
-| Acceptance tests | ⬜ Not started | Day 12 |
+| Acceptance tests (Day 12) | ✅ Done | 32/35 unit tests pass; 3 integration tests need live Docker stack |
 
-Active branch: `feature/day10-dashboard`  
+Active branch: `feature/lstm-model`  
 Main branch: `main`
 
 ---
 
-## Current State (as of Day 11 complete)
+## Current State (as of Day 12 complete)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| React dashboard (Day 11) | ✅ Done | 3 hooks, 3 new components, WCAG 2.2 AA audit pass |
+| Acceptance tests | ✅ Done | `tests/test_acceptance.py` — 35 tests (32 unit, 3 integration). Unit: 32/32 PASS in 2.56s |
 
 ---
 

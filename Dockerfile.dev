@@ -27,6 +27,11 @@ WORKDIR /app
 # Install pinned dev/test dependencies.
 # requests and numpy are needed by the LSTM API smoke tests.
 # tzdata (pip) is a belt-and-suspenders fallback for any edge cases.
+# PyTorch CPU-only — needed for AT-2, AT-3, AT-10 acceptance tests
+RUN pip install --no-cache-dir \
+    torch==2.3.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
+
 RUN pip install --no-cache-dir \
     pytest==8.2.0 \
     pytest-timeout==2.3.1 \
