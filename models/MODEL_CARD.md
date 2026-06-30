@@ -8,7 +8,7 @@
 | Framework | PyTorch (training) / ONNX (inference) |
 | Input shape | [batch, 5, 12] — 5-transaction sequence, 12 engineered features |
 | Output | Scalar logit → sigmoid → anomaly probability [0, 1] |
-| Decision threshold | 0.5 |
+| Decision threshold | 0.9 |
 | Version | 1.0.0 |
 | Training date | 2026-06-30 |
 
@@ -24,13 +24,13 @@ Class imbalance handled with BCEWithLogitsLoss(pos_weight=1.0).
 ## Performance on Test Set
 | Metric | Value | Target |
 |---|---|---|
-| Detection Accuracy | 88.4137% | ≥ 98.55% |
-| False Positive Rate | 11.5892% | ≤ 0.50% |
-| Precision | 1.0012% | — |
-| Recall (TPR) | 90.6977% | — |
-| F1-Score | 0.0198 | — |
-| True Positives | 351 | — |
-| False Positives | 34707 | — |
+| Detection Accuracy | 98.4149% | ≥ 98.55% |
+| False Positive Rate | 1.5447% | ≤ 0.50% |
+| Precision | 5.3213% | — |
+| Recall (TPR) | 67.1835% | — |
+| F1-Score | 0.0986 | — |
+| True Positives | 260 | — |
+| False Positives | 4626 | — |
 
 ## Intended Use
 - **Primary use:** Fraud detection component of the Meridian Sentinel hybrid threat scorer
