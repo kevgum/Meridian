@@ -19,7 +19,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ## 🏃 IN PROGRESS
 
-*(Empty — Day 9 complete)*
+*(Empty — Day 10 complete)*
 
 ---
 
@@ -69,6 +69,21 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `tests/test_hybrid_scorer.py` — 29/29 unit tests passing (mocked ES, no container required)
   - [x] `results/e2e_test_cust18656.json` — CUST-18656 validation scenario documented
   - [x] Full suite: 60/60 tests passing (all days combined)
+
+- [x] **US-07:** React SOC Dashboard — Day 10 (mock data phase)
+  - [x] Vite + React + TypeScript scaffolded in `frontend/`
+  - [x] Tailwind CSS v4 configured (`@tailwindcss/vite` plugin)
+  - [x] `frontend/src/types/index.ts` — TypeScript interfaces (Transaction, SIEMResult, Incident, KPIStats, HistoryEvent)
+  - [x] `frontend/src/data/mockData.ts` — KPI stats, CUST-18656 6-transaction scenario, SIEM result, incident, 30-event chart history
+  - [x] `TopBar.tsx` — KPIs (transactions, detection rate, FPR, active alerts), analyst name, live clock
+  - [x] `TransactionFeed.tsx` — 16 transactions (10 clean + 6 CUST-18656), LSTM bar, SIEM PASS badge, amber highlight on active investigation
+  - [x] `DetectionPanel.tsx` — SIEM rule checklist (4 rules, all PASS), LSTM anomaly bar at 74%, LSTM_ALONE verdict banner
+  - [x] `AlertQueue.tsx` — CUST-18656 alert card, SLA countdown timer (live setInterval), Confirm Threat + Investigate buttons
+  - [x] `HybridChart.tsx` — Recharts LineChart, LSTM (blue) + Hybrid (amber) lines, 0.70 trigger reference line, CUST-18656 annotation dot
+  - [x] `ComplianceBadges.tsx` — APRA CPS 234, PCI DSS v4.0, Privacy Act 1988 status badges
+  - [x] `vercel.json` — SPA rewrite rule for Vercel deployment
+  - [x] Build passes: `npm run build` — zero TypeScript errors
+  - [x] Acceptance criteria: DetectionPanel shows FLAGGED — LSTM ALONE · 74% SUSPICIOUS ✅
 
 - [x] **US-11:** RBAC — Day 9
   - [x] `scripts/bootstrap_rbac.py` — creates 6 ES roles + 6 test users + scoped API key via elasticsearch-py; idempotent

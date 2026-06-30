@@ -31,7 +31,7 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 
 ---
 
-## Current State (as of Day 9 complete)
+## Current State (as of Day 10 complete)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
@@ -41,10 +41,11 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 | Hybrid scorer | ✅ Done | Dual-threshold logic, 60/60 tests pass |
 | Playbook engine | ✅ Done | ES write + mock analyst notification, injected ES client |
 | RBAC | ✅ Done | 6 roles, bootstrap script, AT-9 integration tests |
-| React dashboard | ⬜ Not started | Days 10–11 |
+| React dashboard (Day 10) | ✅ Done | Vite+TS, 6 components, mock data, Vercel-ready |
+| React dashboard (Day 11) | ⬜ Not started | Live ES polling, accessibility, re-deploy |
 | Acceptance tests | ⬜ Not started | Day 12 |
 
-Active branch: `feature/day9-rbac-security`  
+Active branch: `feature/day10-dashboard`  
 Main branch: `main`
 
 ---
@@ -191,6 +192,10 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | [scripts/generate_certs.sh](scripts/generate_certs.sh) | Self-signed TLS cert generation for Elasticsearch (production hardening) |
 | [tests/test_rbac.py](tests/test_rbac.py) | RBAC integration tests — AT-9 coverage (requires live ES) |
 | [docs/requirements_traceability_matrix.md](docs/requirements_traceability_matrix.md) | US-01–US-11 → AT-1–AT-10 traceability matrix |
+| [frontend/src/data/mockData.ts](frontend/src/data/mockData.ts) | All Day 10 mock data — KPIs, CUST-18656 transactions, SIEM result, incident, chart history |
+| [frontend/src/types/index.ts](frontend/src/types/index.ts) | TypeScript interfaces for dashboard |
+| [frontend/src/components/](frontend/src/components/) | 6 React components: TopBar, TransactionFeed, DetectionPanel, AlertQueue, HybridChart, ComplianceBadges |
+| [frontend/vercel.json](frontend/vercel.json) | Vercel SPA rewrite rule |
 
 ---
 
@@ -207,6 +212,9 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | LSTM_ALONE trigger | lstm_score >= 0.70 fires playbook even with siem_score=0 (covers CUST-18656 scenario) |
 | RBAC approach | bootstrap_rbac.py creates roles via ES API (not Kibana UI) — reproducible and version-controlled |
 | TLS enforcement | TLS 1.3 config + cert script provided; not enforced in Docker prototype (would require updating all service URLs and healthchecks) |
+| Frontend framework | Vite + React + TypeScript (not Create React App — CRA is unmaintained since 2023) |
+| Tailwind version | Tailwind CSS v4 — uses @tailwindcss/vite plugin, no tailwind.config.js, @import "tailwindcss" in CSS |
+| Day 10 data | All mock (hardcoded) — Day 11 wires to live Elasticsearch polling |
 
 ---
 
@@ -221,6 +229,15 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 ## Test Commands
 
 ```bash
+# Dashboard dev server (Day 10+)
+cd frontend && npm run dev          # http://localhost:5173
+
+# Dashboard production build
+cd frontend && npm run build
+
+# Deploy to Vercel (requires vercel login first)
+cd frontend && npx vercel --prod
+
 # Full test suite (all 60 tests — requires lstm-serving healthy)
 docker compose --profile dev run --rm dev pytest tests/ -v
 

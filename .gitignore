@@ -57,3 +57,8 @@ certs/*.crt
 certs/*.csr
 certs/*.srl
 certs/*.ext
+
+# Frontend — generated build artefacts
+frontend/node_modules/
+frontend/dist/
+frontend/.vercel/
