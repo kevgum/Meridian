@@ -126,6 +126,48 @@ Response: `{"predictions": [[0.74]]}` — score ≥ 0.90 = fraud (set via `DECIS
 
 ---
 
+## Documentation
+
+### For operators and analysts
+
+| File | What it covers |
+|------|---------------|
+| [onboarding.md](onboarding.md) | New team member setup — prerequisites, clone, env config, stack startup, RBAC bootstrap |
+| [docs/runbook.md](docs/runbook.md) | Operational procedures — startup, stopping, health checks, retraining, incident response, TLS, common failures |
+| [docs/analyst-guide.md](docs/analyst-guide.md) | SOC dashboard walkthrough — how to triage an alert, read threat scores, use the investigation drawer, CUST-18656 worked example |
+| [docs/architecture.md](docs/architecture.md) | Full system design — component diagram, data flow, RBAC model, compliance control mapping (APRA / PCI DSS / Privacy Act) |
+
+### For the ML pipeline
+
+| File | What it covers |
+|------|---------------|
+| [docs/model-serving.md](docs/model-serving.md) | ONNX conversion, Dockerfile walkthrough, FastAPI inference API reference, latency benchmark results |
+| [docs/training-notes.md](docs/training-notes.md) | Training history, the `pos_weight=773` collapse bug and fix, threshold tuning decisions across multiple runs |
+| [docs/colab-guide.md](docs/colab-guide.md) | Step-by-step Google Colab training walkthrough — what to run, what to download, where files go locally |
+| [docs/feature-engineering.md](docs/feature-engineering.md) | All 12 engineered features, sliding window construction, class imbalance strategy |
+
+### For compliance and assessment
+
+| File | What it covers |
+|------|---------------|
+| [compliance/control_mapping.md](compliance/control_mapping.md) | Full APRA CPS 234, PCI DSS v4.0, and Privacy Act 1988 control mapping with implementation status |
+| [docs/requirements_traceability_matrix.md](docs/requirements_traceability_matrix.md) | US-01–US-12 user stories mapped to AT-1–AT-10 acceptance tests with pass/fail evidence |
+| [docs/accessibility-audit.md](docs/accessibility-audit.md) | WCAG 2.2 Level AA audit results for the SOC dashboard — each criterion checked with evidence |
+| [results/security_review.md](results/security_review.md) | Credential scan results and OWASP ZAP baseline report (0 FAIL / 6 low-info warnings) |
+| [docs/retrospective.md](docs/retrospective.md) | 14-day build retrospective — what went well, what missed targets, lessons for production |
+
+### Project planning (build artefacts)
+
+| File | What it covers |
+|------|---------------|
+| [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md) | Kanban board — all 14 days with status and key outputs |
+| [docs/implementation-plan.md](docs/implementation-plan.md) | 14-day sprint plan with user stories, acceptance criteria, and day-by-day task breakdown |
+| [docs/development-guide-2weeks.md](docs/development-guide-2weeks.md) | Original 2-week delivery guide used to scope the sprint |
+| [docs/agent.md](docs/agent.md) | AI assistant persona, role definitions, and prompt templates used during the build |
+| [docs/claude.md](docs/claude.md) | Guide to using Claude effectively as AI pair programmer — prompting patterns, error handling, day-by-day tips |
+
+---
+
 ## Compliance
 
 APRA CPS 234 · PCI DSS v4.0 · Australian Privacy Act 1988  
