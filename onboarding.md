@@ -214,113 +214,49 @@ docker compose logs lstm-serving --tail 50
 
 ## 8. Understanding the Model Input Format
 
-The LSTM expects:
-- **Shape:** `[batch_size, 5, 12]` — sequences of 5 transactions, each with 12 features
-- **Endpoint:** `POST http://localhost:8080/v1/models/lstm:predict`
-- **Threshold:** sigmoid output ≥ 0.90 → classified as fraud
+The LSTM expects sequences of 5 transactions × 12 features (`[batch, 5, 12]`) posted to `POST http://localhost:8080/v1/models/lstm:predict`. Sigmoid output ≥ 0.90 = fraud.
 
-The 12 features are:
-
-| # | Feature | What It Measures |
-|---|---------|-----------------|
-| 1 | `amount_delta` | Deviation from customer rolling average |
-| 2 | `balance_utilisation_ratio` | Sudden balance depletion signal |
-| 3 | `channel_type_encoded` | PAYMENT=0 TRANSFER=1 CASH_OUT=2 DEBIT=3 CASH_IN=4 |
-| 4 | `time_of_day_flag` | 0=business hours, 1=off-hours (before 08:00 or after 22:00 AEST) |
-| 5 | `geo_velocity_flag` | 1 if location jump between transactions exceeds 500 km/h |
-| 6 | `merchant_category_code` | MCC (label-encoded) |
-| 7 | `transaction_frequency_1h` | Transaction count in last 1 hour |
-| 8 | `transaction_frequency_24h` | Transaction count in last 24 hours |
-| 9 | `cumulative_spend_ratio` | Session spend vs 30-day daily average |
-| 10 | `beneficiary_risk_score` | Pre-computed risk of destination account |
-| 11 | `amount_zscore` | Z-score vs customer history |
-| 12 | `session_entropy` | Shannon entropy of merchant categories — high = unusual diversity |
+Full feature list and API reference: [docs/model-serving.md](docs/model-serving.md). All 12 feature definitions: [CLAUDE.md](CLAUDE.md) → "12 Features" section.
 
 ---
 
-## 9. Project Structure Explained
+## 9. Project Structure
 
-```
-Meridaian/
-│
-├── config/model_config.yaml     ← LSTM hyperparameters. Change here, not in code.
-│
-├── docker/
-│   └── convert_to_onnx.py       ← Runs inside container at startup. Converts .pt → .onnx.
-│
-├── docs/                        ← All project documentation
-│   ├── architecture.md          ← System design, data flow, compliance mapping
-│   ├── implementation-plan.md   ← 14-day task breakdown and acceptance criteria
-│   ├── PROJECT_BOARD.md         ← Kanban board (Days 1–6 done, Day 7+ in progress)
-│   └── training-notes.md        ← LSTM training history, pos_weight fix, threshold tuning
-│
-├── models/
-│   ├── lstm_checkpoint_best.pt  ← Committed model weights (best val_acc epoch)
-│   ├── lstm_final.pt            ← Final epoch weights
-│   ├── serving/lstm_v1/         ← ONNX output (gitignored — generated at container start)
-│   └── MODEL_CARD.md            ← Model version, training data, performance metrics
-│
-├── notebooks/                   ← Google Colab notebooks (run in Colab, not locally)
-│   ├── 01_data_pipeline.ipynb   ← PaySim EDA + 12-feature engineering
-│   ├── 02_lstm_model.ipynb      ← Training (20 epochs, WeightedRandomSampler)
-│   └── 03_evaluation.ipynb      ← Evaluation + ONNX export
-│
-├── results/
-│   ├── final_metrics.json       ← threshold=0.90, accuracy=98.4%, FPR=1.54%
-│   ├── latency_benchmark.json   ← p99=28.5ms
-│   └── figures/                 ← Confusion matrix, training curves
-│
-├── src/
-│   ├── models/lstm_model.py     ← LSTMFraudDetector PyTorch class (input→128→64→1)
-│   ├── serving/app.py           ← FastAPI app (ONNX Runtime inference)
-│   ├── inference_client.py      ← Python REST wrapper for the API
-│   └── benchmark.py             ← 100-call latency benchmark
-│
-├── tests/
-│   ├── test_inference_api.py    ← 7 smoke tests (all passing as of Day 6)
-│   └── test_acceptance.py       ← AT-1 through AT-10 (written on Day 12)
-│
-├── .env.example                 ← Copy to .env before running
-├── docker-compose.yml           ← All services: elasticsearch, kibana, logstash, lstm-serving
-├── Dockerfile.serving           ← LSTM container (Python 3.11, torch CPU, onnxruntime)
-├── CLAUDE.md                    ← AI assistant context (read this if using Claude)
-└── README.md                    ← Quick start guide
-```
+Full annotated directory tree: [README.md](README.md) → "Project Structure" section.
+
+Key directories at a glance:
+
+| Path | Contains |
+|------|---------|
+| `src/` | Python source — LSTM model, FastAPI serving, SIEM rules, hybrid scorer, playbook engine |
+| `tests/` | All test suites — acceptance (35 tests), SIEM rules (22), hybrid scorer (29), RBAC |
+| `frontend/src/` | React + TypeScript SOC dashboard components |
+| `docs/` | Architecture, analyst guide, runbook, retrospective |
+| `models/` | PyTorch checkpoints + MODEL_CARD.md (ONNX file is gitignored, generated at startup) |
+| `scripts/` | bootstrap_rbac.py, generate_certs.sh |
+| `compliance/` | control_mapping.md — APRA / PCI DSS / Privacy Act mapping |
 
 ---
 
 ## 10. Key Technical Decisions
 
-These decisions are final — do not re-open them without talking to the team:
+These decisions are final — do not re-open them without talking to the team. Full list with rationale: [CLAUDE.md](CLAUDE.md) → "Decisions Already Made" section.
 
-| Decision | What Was Chosen | Why |
-|----------|----------------|-----|
-| Model framework | PyTorch (train) + ONNX Runtime (serve) | ONNX export produced in Day 5; avoids TF SavedModel conversion |
-| Serving framework | FastAPI + uvicorn | Simpler than TF Serving; no TF dependency at inference time |
-| ONNX conversion | Runs at container startup via `docker/convert_to_onnx.py` | Avoids committing large binary ONNX files to git |
-| Decision threshold | 0.90 (sigmoid output) | Tuned in Day 5; reduces FPR to 1.54% at cost of recall (67.2%) |
-| Fraud sampling | WeightedRandomSampler + pos_weight=1.0 | Fixes model collapse caused by original pos_weight=773 |
-| SIEM score normalisation | 0/1/2/3+ rules → 0.0/0.33/0.67/1.00 | Linear scaling; matches architecture spec |
-| Hybrid threshold | ≥ 0.70 triggers playbook | Matches project brief requirement |
+Quick reference:
+
+| Decision | Chosen |
+|----------|--------|
+| ML framework | PyTorch (train) + ONNX Runtime (serve) |
+| Inference API | FastAPI + uvicorn (not TF Serving) |
+| Decision threshold | 0.90 sigmoid output |
+| Class imbalance | WeightedRandomSampler + pos_weight=1.0 |
+| Hybrid threshold | ≥ 0.70 triggers playbook |
 
 ---
 
 ## 11. Day-by-Day Build Status
 
-| Day | Task | Status |
-|-----|------|--------|
-| 1 | GitHub infrastructure + CI/CD | ✅ Done |
-| 2 | Data pipeline + feature engineering | ✅ Done |
-| 3–4 | LSTM model training | ✅ Done |
-| 5 | Evaluation (threshold tuning + ONNX export) | ✅ Done |
-| 6 | ONNX Runtime + FastAPI serving (Docker) | ✅ Done — 7/7 tests pass, p99=28.5ms |
-| 7 | Elastic SIEM + rule engine | ✅ Done — 22/22 tests pass, ECS Logstash pipeline live |
-| 8 | Hybrid threat scorer + playbook engine | ✅ Done — 29/29 tests pass, CUST-18656 validated, LSTM_ALONE path added |
-| 9 | RBAC + compliance mapping | ✅ Done — 6 roles, bootstrap script, compliance control mapping |
-| 10–11 | React analyst dashboard | ✅ Done — live ES polling, WCAG 2.2 AA, session timeout, investigation drawer, Vercel deployed |
-| 12 | Acceptance test suite (AT-1 through AT-10) | ✅ Done — 35 tests, 32/35 pass without Docker |
-| 13 | Live integration tests + security review | ✅ Done — 35/35 PASS, ZAP 0 FAIL / 6 low-info WARN, `v1.0.0-prototype` tagged |
-| 14 | README, analyst guide, runbook, retrospective | ✅ Done |
+All 14 days complete. Current status board: [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md)
 
 ---
 
@@ -346,29 +282,17 @@ After training, download the output files and place them in:
 
 ## 13. Common Issues
 
-**Port 9200 or 5601 already in use**
+Full troubleshooting table with root causes and fixes: [docs/runbook.md](docs/runbook.md) → Section 7.
 
-Another Elasticsearch or Kibana instance is running. Stop it, or change the host ports in `docker-compose.yml`.
+Quick reference for the most common problems:
 
-**Elasticsearch exits immediately with exit code 137**
-
-Out of memory. Increase Docker Desktop memory to at least 4 GB.
-
-**ONNX model not found error in lstm-serving**
-
-The `models/serving/lstm_v1/` directory must exist and be writable. Docker creates the ONNX file there at startup. If the file is corrupt (< 100 KB), delete it and restart the container:
-```bash
-# Windows
-del models\serving\lstm_v1\lstm_fraud_detector.onnx
-# Mac / Linux
-rm models/serving/lstm_v1/lstm_fraud_detector.onnx
-
-docker compose restart lstm-serving
-```
-
-**Tests fail with `ConnectionRefusedError`**
-
-The `lstm-serving` container is not running or not yet healthy. Run `docker compose ps` and check its status.
+| Symptom | Fix |
+|---------|-----|
+| Kibana exits code 78 | Run `bootstrap_rbac.py`, copy `KIBANA_SERVICE_TOKEN` into `.env`, restart Kibana |
+| Elasticsearch exits code 137 | Increase Docker Desktop memory to ≥ 4 GB |
+| ONNX file missing / corrupt | `rm models/serving/lstm_v1/lstm_fraud_detector.onnx` then `docker compose restart lstm-serving` |
+| Tests fail with `ConnectionRefusedError` | `docker compose ps` — check lstm-serving is healthy |
+| Port 9200 / 5601 in use | Stop conflicting service or change host port in `docker-compose.yml` |
 
 ---
 
