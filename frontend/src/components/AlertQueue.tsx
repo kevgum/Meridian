@@ -5,6 +5,31 @@ import type { Incident } from '../types';
 import type { ToastMessage } from './Toast';
 
 type SeverityFilter = 'ALL' | 'HIGH' | 'MONITOR';
+type ChannelFilter  = 'ALL' | 'Online' | 'Card' | 'Mobile';
+type TimeFilter     = 'ALL' | '<1h' | '<6h' | '<24h';
+
+interface MonitorAlert {
+  id: string;
+  channel: 'Online' | 'Card' | 'Mobile';
+  ageMinutes: number;
+  title: string;
+  location: string;
+}
+
+const MONITOR_ALERTS: MonitorAlert[] = [
+  { id: 'CUST-44209', channel: 'Online', ageMinutes: 140, title: 'Qantas charge',       location: 'Sydney, NSW'    },
+  { id: 'CUST-73940', channel: 'Card',   ageMinutes: 370, title: 'Electronics purchase', location: 'Melbourne, VIC' },
+];
+
+const HIGH_ALERT_CHANNEL: ChannelFilter = 'Mobile';
+const HIGH_ALERT_AGE_MINUTES = 14;
+
+function timeLimit(f: TimeFilter): number {
+  if (f === '<1h')  return 60;
+  if (f === '<6h')  return 360;
+  if (f === '<24h') return 1440;
+  return Infinity;
+}
 
 interface Props {
   incident: Incident;
@@ -14,24 +39,36 @@ interface Props {
 
 function useSlaCountdown(initialSeconds: number) {
   const [remaining, setRemaining] = useState(initialSeconds);
-
   useEffect(() => {
     const id = setInterval(() => setRemaining((s) => Math.max(0, s - 1)), 1_000);
     return () => clearInterval(id);
   }, []);
-
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
   const isUrgent = remaining < 60;
   return { display: `${mins}:${secs.toString().padStart(2, '0')}`, isUrgent, remaining };
 }
 
+function chipClass(active: boolean) {
+  return `px-2 py-0.5 rounded text-[10px] font-semibold transition-colors focus:outline-none focus:ring-1 focus:ring-blue-400 ${
+    active
+      ? 'bg-blue-600 text-white'
+      : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200'
+  }`;
+}
+
+function ageLabel(minutes: number): string {
+  return minutes < 60 ? `${minutes}m ago` : `${Math.round(minutes / 60)}h ago`;
+}
+
 export default function AlertQueue({ incident, onInvestigate, onToast }: Props) {
   const sla = useSlaCountdown(248);
-  const [confirming, setConfirming] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
-  const [filter, setFilter] = useState<SeverityFilter>('ALL');
-  const [escalated, setEscalated] = useState(false);
+  const [confirming, setConfirming]         = useState(false);
+  const [confirmed, setConfirmed]           = useState(false);
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('ALL');
+  const [channelFilter, setChannelFilter]   = useState<ChannelFilter>('ALL');
+  const [timeFilter, setTimeFilter]         = useState<TimeFilter>('ALL');
+  const [escalated, setEscalated]           = useState(false);
 
   function handleEscalate() {
     setEscalated(true);
@@ -41,14 +78,21 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
     });
   }
 
-  const showHighAlert = filter === 'ALL' || filter === 'HIGH';
-  const showMonitorAlerts = filter === 'ALL' || filter === 'MONITOR';
+  const limit = timeLimit(timeFilter);
 
-  const FILTER_BUTTONS: { label: SeverityFilter; count: number }[] = [
-    { label: 'ALL', count: 3 },
-    { label: 'HIGH', count: 1 },
-    { label: 'MONITOR', count: 2 },
-  ];
+  const showHighAlert =
+    (severityFilter === 'ALL' || severityFilter === 'HIGH') &&
+    (channelFilter  === 'ALL' || channelFilter  === HIGH_ALERT_CHANNEL) &&
+    HIGH_ALERT_AGE_MINUTES <= limit;
+
+  const visibleMonitor = MONITOR_ALERTS.filter(
+    (a) =>
+      (severityFilter === 'ALL' || severityFilter === 'MONITOR') &&
+      (channelFilter  === 'ALL' || a.channel === channelFilter) &&
+      a.ageMinutes <= limit,
+  );
+
+  const totalVisible = (showHighAlert ? 1 : 0) + visibleMonitor.length;
 
   async function handleConfirmThreat() {
     setConfirming(true);
@@ -58,7 +102,6 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
       confirmed_at: new Date().toISOString(),
       action: incident.action,
     };
-
     try {
       await axios.post(
         `/api/meridian-incidents-${new Date().toISOString().slice(0, 10).replace(/-/g, '.')}/_doc/${incident.incidentId}`,
@@ -68,7 +111,6 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
       setConfirmed(true);
       onToast({ message: `Incident ${incident.incidentId} confirmed — audit log updated`, variant: 'success' });
     } catch {
-      // ES unreachable from Vercel — optimistic success for demo
       setConfirmed(true);
       onToast({ message: `Incident ${incident.incidentId} confirmed (demo mode)`, variant: 'success' });
     } finally {
@@ -81,57 +123,83 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
       aria-label="Alert queue"
       className="w-72 shrink-0 bg-slate-800 border border-slate-700 rounded-lg flex flex-col overflow-hidden"
     >
-      <div className="px-3 py-2.5 border-b border-slate-700 shrink-0">
-        <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          Alert Queue
-        </p>
-        <p className="text-xs text-slate-500 mt-0.5">3 active · 1 requiring action</p>
+      {/* Header + filters */}
+      <div className="px-3 py-2.5 border-b border-slate-700 shrink-0 space-y-2">
+        <div>
+          <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Alert Queue</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {totalVisible} active · {showHighAlert ? 1 : 0} requiring action
+          </p>
+        </div>
 
-        {/* US-08: severity filter chips */}
-        <div
-          className="flex gap-1 mt-2"
-          role="group"
-          aria-label="Filter alerts by severity"
-        >
-          {FILTER_BUTTONS.map(({ label, count }) => (
+        {/* US-08 — severity filter */}
+        <div role="group" aria-label="Filter by severity" className="flex items-center gap-1.5">
+          <span className="text-[10px] text-slate-500 w-11 shrink-0">Severity</span>
+          {(['ALL', 'HIGH', 'MONITOR'] as SeverityFilter[]).map((v) => (
             <button
-              key={label}
-              onClick={() => setFilter(label)}
-              aria-pressed={filter === label}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                filter === label
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200'
-              }`}
+              key={v}
+              onClick={() => setSeverityFilter(v)}
+              aria-pressed={severityFilter === v}
+              className={chipClass(severityFilter === v)}
             >
-              {label}
-              <span className="opacity-70">{count}</span>
+              {v}
+            </button>
+          ))}
+        </div>
+
+        {/* US-08 — channel filter */}
+        <div role="group" aria-label="Filter by channel" className="flex items-center gap-1.5">
+          <span className="text-[10px] text-slate-500 w-11 shrink-0">Channel</span>
+          {(['ALL', 'Online', 'Card', 'Mobile'] as ChannelFilter[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setChannelFilter(v)}
+              aria-pressed={channelFilter === v}
+              className={chipClass(channelFilter === v)}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+
+        {/* US-08 — time filter */}
+        <div role="group" aria-label="Filter by time window" className="flex items-center gap-1.5">
+          <span className="text-[10px] text-slate-500 w-11 shrink-0">Time</span>
+          {(['ALL', '<1h', '<6h', '<24h'] as TimeFilter[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setTimeFilter(v)}
+              aria-pressed={timeFilter === v}
+              className={chipClass(timeFilter === v)}
+            >
+              {v}
             </button>
           ))}
         </div>
       </div>
 
-      {/* MONITOR alerts — shown when filter is ALL or MONITOR */}
-      {showMonitorAlerts && (
-        <>
-          <div className="px-3 py-2 border-b border-slate-700/50 opacity-50">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">CUST-44209</span>
-              <span className="text-xs text-blue-400 font-semibold">MONITOR</span>
-            </div>
-            <p className="text-xs text-slate-500">Qantas charge · Sydney, NSW</p>
+      {/* MONITOR alerts — filtered */}
+      {visibleMonitor.map((a) => (
+        <div key={a.id} className="px-3 py-2 border-b border-slate-700/50 opacity-50">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400">{a.id}</span>
+            <span className="text-xs text-blue-400 font-semibold">MONITOR</span>
           </div>
-          <div className="px-3 py-2 border-b border-slate-700/50 opacity-50">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">CUST-73940</span>
-              <span className="text-xs text-blue-400 font-semibold">MONITOR</span>
-            </div>
-            <p className="text-xs text-slate-500">Electronics purchase · Melbourne, VIC</p>
-          </div>
-        </>
+          <p className="text-xs text-slate-500">{a.title} · {a.location}</p>
+          <p className="text-[10px] text-slate-600 mt-0.5">
+            {a.channel} · {ageLabel(a.ageMinutes)}
+          </p>
+        </div>
+      ))}
+
+      {/* Empty state */}
+      {totalVisible === 0 && (
+        <div className="flex-1 flex items-center justify-center p-4">
+          <p className="text-xs text-slate-500 text-center">No alerts match the selected filters</p>
+        </div>
       )}
 
-      {/* Active HIGH alert — hidden when MONITOR-only filter is active */}
+      {/* Active HIGH alert — CSS-hidden when filtered out */}
       <div
         className={`flex-1 p-3 flex flex-col gap-3 overflow-y-auto${showHighAlert ? '' : ' hidden'}`}
         aria-live="polite"
