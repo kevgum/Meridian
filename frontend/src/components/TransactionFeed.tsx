@@ -17,7 +17,8 @@ function LSTMBar({ score }: { score: number }) {
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={`LSTM anomaly score ${pct}%`}
+        aria-label={`AI risk score ${pct}%`}
+        title={`AI risk score: ${pct}% — how unusual this payment looks`}
       >
         <div className={`h-full rounded-full ${colour}`} style={{ width: `${pct}%` }} />
       </div>
@@ -30,7 +31,7 @@ function LSTMBar({ score }: { score: number }) {
 
 function TransactionRow({ tx }: { tx: Transaction }) {
   const isHighAlert = tx.isActive && tx.lstmScore >= 0.70;
-  const label = `${tx.merchantName}, ${tx.mccLabel}, $${tx.amount.toFixed(2)}, SIEM PASS, LSTM ${Math.round(tx.lstmScore * 100)}%${tx.isActive ? ', active investigation' : ''}`;
+  const label = `${tx.merchantName}, ${tx.mccLabel}, $${tx.amount.toFixed(2)}, passed security rules, AI risk ${Math.round(tx.lstmScore * 100)}%${tx.isActive ? ', active investigation' : ''}`;
 
   return (
     <div
@@ -65,9 +66,9 @@ function TransactionRow({ tx }: { tx: Transaction }) {
           <p className={`text-xs font-semibold tabular-nums ${tx.isActive ? 'text-amber-200' : 'text-slate-200'}`}>
             ${tx.amount.toFixed(2)}
           </p>
-          <div className="flex items-center justify-end gap-1 mt-0.5" aria-hidden="true">
+          <div className="flex items-center justify-end gap-1 mt-0.5" aria-hidden="true" title="Passed all security rules">
             <CheckCircle size={10} className="text-green-500" />
-            <span className="text-xs text-green-500 font-medium">PASS</span>
+            <span className="text-xs text-green-500 font-medium">OK</span>
           </div>
         </div>
       </div>

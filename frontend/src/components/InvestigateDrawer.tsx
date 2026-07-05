@@ -116,7 +116,7 @@ export default function InvestigateDrawer({ incident, onClose }: Props) {
                     <th scope="col" className="text-left px-3 py-2 text-slate-400 font-semibold">Time</th>
                     <th scope="col" className="text-left px-3 py-2 text-slate-400 font-semibold">Merchant</th>
                     <th scope="col" className="text-right px-3 py-2 text-slate-400 font-semibold">Amount</th>
-                    <th scope="col" className="text-right px-3 py-2 text-slate-400 font-semibold">LSTM</th>
+                    <th scope="col" className="text-right px-3 py-2 text-slate-400 font-semibold">AI risk</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -153,37 +153,40 @@ export default function InvestigateDrawer({ incident, onClose }: Props) {
             <div className="flex items-center gap-2 mb-2">
               <Brain size={13} className="text-blue-400" />
               <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                Hybrid Score Breakdown
+                How the Risk Score Adds Up
               </p>
             </div>
+            <p className="text-xs text-slate-500 mb-2 leading-snug">
+              The final risk score is the AI check counted at 60% plus the security-rules check at 40%.
+            </p>
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 space-y-2 font-mono text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-400">LSTM score</span>
+                <span className="text-slate-400">AI behaviour score</span>
                 <span className="text-blue-300">{incident.lstmScore.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-slate-500">
-                <span>× LSTM weight</span>
+                <span>counts as 60%</span>
                 <span>× 0.60</span>
               </div>
               <div className="flex justify-between border-t border-slate-700 pt-2">
-                <span className="text-slate-400">LSTM contribution</span>
-                <span className="text-blue-300">{(incident.lstmScore * 0.6).toFixed(3)}</span>
+                <span className="text-slate-400">AI adds</span>
+                <span className="text-blue-300">{(incident.lstmScore * 0.6).toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">SIEM score</span>
+                <span className="text-slate-400">Security rules score</span>
                 <span className="text-green-300">{incident.siemScore.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-slate-500">
-                <span>× SIEM weight</span>
+                <span>counts as 40%</span>
                 <span>× 0.40</span>
               </div>
               <div className="flex justify-between border-t border-slate-700 pt-2">
-                <span className="text-slate-400">SIEM contribution</span>
-                <span className="text-green-300">{(incident.siemScore * 0.4).toFixed(3)}</span>
+                <span className="text-slate-400">Rules add</span>
+                <span className="text-green-300">{(incident.siemScore * 0.4).toFixed(2)}</span>
               </div>
               <div className="flex justify-between border-t border-slate-600 pt-2 text-sm">
-                <span className="text-slate-200 font-semibold">Hybrid score</span>
-                <span className="text-amber-300 font-bold">{incident.threatScore.toFixed(3)}</span>
+                <span className="text-slate-200 font-semibold">Overall risk score</span>
+                <span className="text-amber-300 font-bold">{incident.threatScore.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -193,23 +196,24 @@ export default function InvestigateDrawer({ incident, onClose }: Props) {
             <div className="flex items-center gap-2 mb-2">
               <Zap size={13} className="text-amber-400" />
               <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                Trigger Path
+                Why It Was Flagged
               </p>
             </div>
             <div className="bg-amber-900/20 border border-amber-700/40 rounded-lg p-3 space-y-2 text-xs">
-              <p className="text-amber-300 font-semibold">LSTM_ALONE</p>
+              <p className="text-amber-300 font-semibold">Flagged by the AI on its own</p>
               <p className="text-slate-300 leading-snug">
-                Hybrid score 0.444 is below the 0.70 combined threshold. However,
-                lstm_score 0.74 ≥ 0.70 activates the LSTM_ALONE path, which fires
-                the playbook independently of the SIEM score.
+                The combined risk score (0.44) sits below the usual flag line of 0.70.
+                But the AI behaviour score alone (0.74) was high enough to raise this
+                for review — the system doesn't wait for the security rules to agree
+                when the AI is this confident.
               </p>
               <div className="border-t border-amber-700/30 pt-2">
                 <p className="text-slate-400">
-                  Playbook action:{' '}
+                  Action taken:{' '}
                   <span className="text-amber-300 font-semibold">{incident.action}</span>
                 </p>
                 <p className="text-slate-400 mt-0.5">
-                  Severity:{' '}
+                  Urgency:{' '}
                   <span className="text-amber-300 font-semibold">{incident.severity}</span>
                 </p>
               </div>

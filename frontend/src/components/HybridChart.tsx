@@ -35,14 +35,14 @@ function CustomTooltip({
 
   return (
     <div className="bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-xs shadow-xl">
-      <p className="text-slate-400 mb-1.5">Event #{label}</p>
+      <p className="text-slate-400 mb-1.5">Payment #{label}</p>
       {payload.map((p) => (
         <p key={p.name} style={{ color: p.color }} className="font-mono">
-          {p.name}: {p.value.toFixed(3)}
+          {p.name === 'lstm' ? 'AI behaviour' : 'Overall risk'}: {p.value.toFixed(2)}
         </p>
       ))}
       {label === 30 && (
-        <p className="text-amber-400 mt-1 font-semibold">CUST-18656 — LSTM_ALONE</p>
+        <p className="text-amber-400 mt-1 font-semibold">Customer CUST-18656 — flagged by the AI</p>
       )}
     </div>
   );
@@ -56,10 +56,10 @@ export default function HybridChart({ events }: Props) {
     <div className="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col min-w-0">
       <div className="mb-3 shrink-0">
         <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          Hybrid Detection Performance — Last 30 Events
+          Risk Score Over the Last 30 Payments
         </p>
         <p className="text-xs text-slate-500 mt-0.5">
-          threat_score = (LSTM × 0.60) + (SIEM × 0.40) · Trigger line at 0.70
+          Any payment above the red line is flagged for a human to review.
         </p>
       </div>
 
@@ -72,7 +72,7 @@ export default function HybridChart({ events }: Props) {
               tick={{ fill: '#64748b', fontSize: 10 }}
               tickLine={false}
               axisLine={{ stroke: '#475569' }}
-              label={{ value: 'Event', position: 'insideBottomRight', fill: '#64748b', fontSize: 10, offset: -4 }}
+              label={{ value: 'Payment', position: 'insideBottomRight', fill: '#64748b', fontSize: 10, offset: -4 }}
             />
             <YAxis
               domain={[0, 1]}
@@ -85,7 +85,7 @@ export default function HybridChart({ events }: Props) {
             <Legend
               wrapperStyle={{ fontSize: 11, color: '#94a3b8', paddingTop: 8 }}
               formatter={(value: string) =>
-                value === 'lstm' ? 'LSTM Score' : 'Hybrid Score'
+                value === 'lstm' ? 'AI behaviour score' : 'Overall risk score'
               }
             />
 
@@ -95,7 +95,7 @@ export default function HybridChart({ events }: Props) {
               stroke="#ef4444"
               strokeDasharray="5 3"
               strokeWidth={1.5}
-              label={{ value: 'Trigger 0.70', position: 'insideTopLeft', fill: '#ef4444', fontSize: 10 }}
+              label={{ value: 'Flag line', position: 'insideTopLeft', fill: '#ef4444', fontSize: 10 }}
             />
 
             {/* LSTM score line */}

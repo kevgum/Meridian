@@ -12,11 +12,14 @@ interface KPITileProps {
   sub?: string;
   icon: React.ReactNode;
   highlight?: boolean;
+  tooltip?: string;
 }
 
-function KPITile({ label, value, sub, icon, highlight }: KPITileProps) {
+function KPITile({ label, value, sub, icon, highlight, tooltip }: KPITileProps) {
   return (
-    <div className={`flex items-center gap-3 px-5 py-3 rounded-lg border ${
+    <div
+      title={tooltip}
+      className={`flex items-center gap-3 px-5 py-3 rounded-lg border ${
       highlight
         ? 'bg-red-950/40 border-red-700/50'
         : 'bg-slate-800 border-slate-700'
@@ -53,33 +56,38 @@ export default function TopBar({ stats, isLive }: Props) {
           <p className="text-sm font-bold text-slate-100 tracking-tight leading-none">
             MERIDIAN SENTINEL
           </p>
-          <p className="text-xs text-slate-500 leading-none mt-0.5">v3.2 — SOC Dashboard</p>
+          <p className="text-xs text-slate-500 leading-none mt-0.5">v3.2 — Fraud Monitoring Dashboard</p>
         </div>
       </div>
 
       {/* KPI tiles */}
       <div className="flex items-center gap-3 flex-1 justify-center flex-wrap">
         <KPITile
-          label="Transactions Today"
+          label="Payments Checked Today"
           value={stats.transactionsToday.toLocaleString()}
           icon={<Activity size={16} />}
+          tooltip="Total payments the system reviewed today"
         />
         <KPITile
-          label="Detection Rate"
+          label="Correct Decisions"
           value={`${stats.detectionRate}%`}
-          sub="at threshold 0.90"
+          sub="overall accuracy"
           icon={<TrendingDown size={16} />}
+          tooltip="How often the system's decision (flag or allow) is correct overall"
         />
         <KPITile
-          label="False Positive Rate"
+          label="False Alarms"
           value={`${stats.fpr}%`}
+          sub="normal flagged by mistake"
           icon={<TrendingDown size={16} />}
+          tooltip="How often a normal payment is wrongly flagged as suspicious"
         />
         <KPITile
-          label="Active Alerts"
+          label="Cases to Review"
           value={String(stats.activeAlerts)}
           icon={<AlertTriangle size={16} />}
           highlight
+          tooltip="Flagged cases waiting for a human analyst to check"
         />
       </div>
 

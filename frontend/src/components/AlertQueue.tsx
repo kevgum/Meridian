@@ -240,18 +240,18 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
         </div>
 
         <div className="rounded-lg bg-slate-700/50 border border-slate-600/50 p-2.5 grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-xs text-slate-400">LSTM</p>
+          <div title="How unusual the AI thinks this is">
+            <p className="text-xs text-slate-400">AI</p>
             <p className="text-sm font-bold text-blue-300 font-mono">
               {Math.round(incident.lstmScore * 100)}%
             </p>
           </div>
-          <div>
-            <p className="text-xs text-slate-400">SIEM</p>
+          <div title="How many security rules were broken">
+            <p className="text-xs text-slate-400">Rules</p>
             <p className="text-sm font-bold text-green-300 font-mono">0%</p>
           </div>
-          <div>
-            <p className="text-xs text-slate-400">Hybrid</p>
+          <div title="The combined risk score">
+            <p className="text-xs text-slate-400">Overall</p>
             <p className="text-sm font-bold text-amber-300 font-mono">
               {Math.round(incident.threatScore * 100)}%
             </p>
@@ -259,9 +259,9 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
         </div>
 
         <div className="rounded-lg bg-blue-900/20 border border-blue-700/30 p-2.5">
-          <p className="text-xs text-blue-300 font-semibold">Trigger: LSTM_ALONE</p>
+          <p className="text-xs text-blue-300 font-semibold">Flagged by the AI on its own</p>
           <p className="text-xs text-blue-200/60 mt-0.5 leading-snug">
-            Hybrid score (0.444) below 0.70 — LSTM_ALONE fires because lstm ≥ 0.70
+            The overall score was below the usual flag line, but the AI alone was confident enough to raise this for review.
           </p>
         </div>
 
