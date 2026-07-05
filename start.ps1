@@ -1,5 +1,5 @@
-# =============================================================================
-# start.ps1 — Meridian Sentinel full-stack bootstrap (Windows / PowerShell)
+﻿# =============================================================================
+# start.ps1 - Meridian Sentinel full-stack bootstrap (Windows / PowerShell)
 # =============================================================================
 # Run once after cloning to bring the entire stack up and verify it works.
 # Subsequent runs restart any stopped services and re-run smoke tests.
@@ -54,7 +54,7 @@ if (-not (Test-Path ".env")) {
     Copy-Item ".env.example" ".env"
     Ok "Created .env from .env.example (defaults are fine for local development)"
 } else {
-    Ok ".env already exists — skipping"
+    Ok ".env already exists - skipping"
 }
 
 # Read ELASTIC_PASSWORD from .env for health-check polling
@@ -74,7 +74,7 @@ Ok "models\serving\lstm_v1\ directory ready"
 # 3. Build Docker images
 # =============================================================================
 Step "Building Docker images"
-Info "First build downloads PyTorch CPU (~550 MB) and dev tools — takes 3-5 minutes."
+Info "First build downloads PyTorch CPU (~550 MB) and dev tools - takes 3-5 minutes."
 Info "Subsequent builds use the layer cache and are near-instant."
 
 docker compose --profile dev build
@@ -113,7 +113,7 @@ for ($i = 1; $i -le $esMax; $i++) {
     if ($i -eq $esMax) {
         Fail "Elasticsearch did not become healthy after 120 s.`nDiagnose with: docker compose logs elasticsearch --tail 40"
     }
-    Info "Attempt $i/$esMax — retrying in 5 s..."
+    Info "Attempt $i/$esMax - retrying in 5 s..."
     Start-Sleep -Seconds 5
 }
 
@@ -142,7 +142,7 @@ for ($i = 1; $i -le $lstmMax; $i++) {
     if ($i -eq $lstmMax) {
         Fail "LSTM API did not become healthy after 180 s.`nDiagnose with: docker compose logs lstm-serving --tail 40"
     }
-    Info "Attempt $i/$lstmMax — retrying in 5 s..."
+    Info "Attempt $i/$lstmMax - retrying in 5 s..."
     Start-Sleep -Seconds 5
 }
 
