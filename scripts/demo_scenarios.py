@@ -67,22 +67,15 @@ DARWIN = (-12.4634, 130.8456)
 LONDON = (51.5074, -0.1278)
 
 # Feature windows (5 transactions x 12 features) fed to the live LSTM model.
-# A calm window (low, steady values) reads as normal; an escalating window
-# (rising spend, rising frequency, geo-velocity flag set) reads as anomalous.
-CALM_WINDOW = [
-    [0.05, 0.10, 0.0, 0.0, 0.0, 5411, 1.0, 2.0, 0.10, 0.10, 0.20, 0.30],
-    [0.06, 0.11, 0.0, 0.0, 0.0, 5411, 1.0, 2.0, 0.11, 0.10, 0.21, 0.31],
-    [0.05, 0.12, 0.0, 0.0, 0.0, 5411, 1.0, 3.0, 0.12, 0.10, 0.22, 0.30],
-    [0.07, 0.10, 0.0, 0.0, 0.0, 5411, 2.0, 3.0, 0.10, 0.11, 0.20, 0.32],
-    [0.06, 0.11, 0.0, 0.0, 0.0, 5411, 1.0, 2.0, 0.11, 0.10, 0.21, 0.30],
-]
-ESCALATING_WINDOW = [
-    [0.1, 0.2, 2.0, 1.0, 0.0, 5732, 3.0, 8.0, 0.5, 0.3, 0.8, 1.2],
-    [0.2, 0.3, 2.0, 1.0, 0.0, 5732, 4.0, 9.0, 0.6, 0.3, 0.9, 1.3],
-    [0.3, 0.4, 2.0, 0.0, 0.0, 5812, 5.0, 10.0, 0.7, 0.4, 1.0, 1.5],
-    [0.4, 0.5, 2.0, 0.0, 1.0, 5732, 6.0, 11.0, 0.8, 0.5, 1.1, 1.8],
-    [0.5, 0.6, 2.0, 1.0, 1.0, 5732, 7.0, 12.0, 0.9, 0.6, 1.2, 2.1],
-]
+# These are the canonical tensors the acceptance tests use: the model scores the
+# fraud window well above the clean window. Feature order (from CLAUDE.md):
+#   amount_delta, balance_utilisation, channel, time_of_day, geo_velocity,
+#   merchant_category_code (ENCODED, not raw MCC), freq_1h, freq_24h,
+#   cumulative_spend, beneficiary_risk, amount_zscore, session_entropy
+_CLEAN_ROW = [0.02, 0.05, 0.0, 0.0, 0.0, 3.0, 1.0, 2.0, 0.08, 0.05, 0.3, 0.10]
+_FRAUD_ROW = [2.5, 0.97, 2.0, 1.0, 1.0, 0.0, 6.0, 8.0, 0.95, 0.90, 3.5, 0.85]
+CALM_WINDOW = [_CLEAN_ROW] * 5
+ESCALATING_WINDOW = [_FRAUD_ROW] * 5
 
 
 def _event(
