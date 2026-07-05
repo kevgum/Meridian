@@ -287,13 +287,17 @@ class TestPlaybookEngine:
         assert incident["analyst_assigned"] is None
 
     def test_fire_writes_to_elasticsearch(self) -> None:
-        """fire() calls es.index() exactly once with the incident document."""
+        """fire() writes the incident document to a meridian-incidents index."""
         engine, mock_es = self._engine_with_mock_es()
         incident = engine.fire(self._minimal_scorer_result())
-        mock_es.index.assert_called_once()
-        call_kwargs = mock_es.index.call_args[1]
-        assert "meridian-incidents-" in call_kwargs["index"]
-        assert call_kwargs["document"]["incident_id"] == incident["incident_id"]
+        # fire() writes both an incident and a notification document
+        assert mock_es.index.call_count == 2
+        incident_calls = [
+            c for c in mock_es.index.call_args_list
+            if "meridian-incidents-" in c.kwargs["index"]
+        ]
+        assert len(incident_calls) == 1
+        assert incident_calls[0].kwargs["document"]["incident_id"] == incident["incident_id"]
 
     def test_fire_elasticsearch_failure_does_not_raise(self) -> None:
         """An ES write failure logs an error but does NOT propagate — notification must still fire."""

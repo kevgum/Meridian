@@ -255,12 +255,32 @@ def _print_scenario(scenario: dict, siem: dict, result: dict, live: bool) -> Non
     print(f"\n Takeaway: {scenario['teaches']}")
 
 
+def _env_file_value(key: str) -> str | None:
+    """Read a single ``KEY=value`` from the project .env file, if present."""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith(f"{key}="):
+                return stripped.split("=", 1)[1].strip()
+    return None
+
+
 def _build_es_client():
-    """Build an Elasticsearch client for live mode from environment variables."""
+    """Build an Elasticsearch client for live mode.
+
+    The password is taken from the ELASTIC_PASSWORD environment variable, then
+    the project .env file, then a default - so the demo always uses the same
+    credentials the running stack was started with.
+    """
     from elasticsearch import Elasticsearch
 
     host = os.environ.get("ELASTIC_HOST", "http://localhost:9200")
-    password = os.environ.get("ELASTIC_PASSWORD", "meridian123")
+    password = (
+        os.environ.get("ELASTIC_PASSWORD")
+        or _env_file_value("ELASTIC_PASSWORD")
+        or "meridian123"
+    )
     return Elasticsearch(host, basic_auth=("elastic", password), request_timeout=10)
 
 

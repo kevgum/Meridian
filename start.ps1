@@ -153,9 +153,16 @@ Step "Running test suite inside Docker"
 Info "SIEM unit tests run immediately. LSTM API tests call http://lstm-serving:8080."
 
 docker compose --profile dev run --rm dev pytest tests/ -v
+$testExit = $LASTEXITCODE
 
 Write-Host ""
-Ok "All tests passed"
+if ($testExit -ne 0) {
+    Warn "Some tests failed (exit $testExit). Review the output above."
+    Warn "Integration tests (AT-1/AT-6) can fail on first boot if Logstash or RBAC"
+    Warn "are not ready yet - re-run:  docker compose --profile dev run --rm dev pytest tests/ -v"
+} else {
+    Ok "All tests passed"
+}
 
 # =============================================================================
 # 8. Print service summary

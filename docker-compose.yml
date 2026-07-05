@@ -117,6 +117,8 @@ services:
       # Tests that call the LSTM API use this URL (Docker internal hostname)
       - LSTM_SERVING_URL=http://lstm-serving:8080
       - DECISION_THRESHOLD=${DECISION_THRESHOLD:-0.92}
+      # So integration tests authenticate with the same password the stack uses
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-meridian123}
     # depends_on is honoured by `docker compose up` (not `run`).
     # Kept here for documentation purposes and future compose watch support.
     depends_on:

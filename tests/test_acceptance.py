@@ -381,7 +381,10 @@ class TestAT5_PlaybookContainment:
         mock_es = self._make_mock_es()
         engine = PlaybookEngine(es_client=mock_es)
         engine.fire(_make_scorer_result())
-        mock_es.index.assert_called_once()
+        # fire() writes both an incident and a notification document
+        assert mock_es.index.call_count == 2
+        indices = [c.kwargs["index"] for c in mock_es.index.call_args_list]
+        assert any(i.startswith("meridian-incidents-") for i in indices)
 
     def test_analyst_notification_logged(self, caplog: pytest.LogCaptureFixture) -> None:
         mock_es = self._make_mock_es()
@@ -497,9 +500,9 @@ class TestAT7_ComplianceReport:
 
     def test_control_mapping_has_active_controls(self) -> None:
         content = _CONTROL_MAP.read_text(encoding="utf-8")
-        active_count = content.count("✅")
+        active_count = content.count("Implemented")
         assert active_count >= 10, (
-            f"AT-7 FAIL: only {active_count} active controls (✅) in control_mapping.md, expected ≥ 10"
+            f"AT-7 FAIL: only {active_count} active controls (Implemented) in control_mapping.md, expected >= 10"
         )
 
     def test_traceability_matrix_exists(self) -> None:
