@@ -6,8 +6,8 @@ import type { Transaction, SIEMResult, Incident, KPIStats, HistoryEvent } from '
 
 export const KPI_STATS: KPIStats = {
   transactionsToday: 184_299,
-  detectionRate: 98.55,
-  fpr: 0.50,
+  detectionRate: 98.86, // overall accuracy at threshold 0.92 (results/final_metrics.json)
+  fpr: 1.10,            // false positive rate at threshold 0.92
   activeAlerts: 3,
   analystName: 'Kevin Mugambi',
 };
