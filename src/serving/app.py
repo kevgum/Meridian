@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 MODEL_PATH = os.getenv("MODEL_PATH", "/models/lstm_fraud_detector.onnx")
-THRESHOLD = float(os.getenv("DECISION_THRESHOLD", "0.90"))
+THRESHOLD = float(os.getenv("DECISION_THRESHOLD", "0.92"))
 
 session: ort.InferenceSession = None
 

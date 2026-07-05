@@ -35,7 +35,7 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| LSTM model | ✅ Trained + committed | 98.4% acc, 1.54% FPR at threshold=0.90 |
+| LSTM model | ✅ Trained + committed | 98.86% acc, 1.10% FPR, 63.8% recall at threshold=0.92 (35-epoch retrain) |
 | ONNX serving (FastAPI) | ✅ Running | p99=28.5ms, 7/7 smoke tests pass |
 | Elastic SIEM stack | ✅ Done | Rule engine live, ECS Logstash pipeline, 22/22 tests pass |
 | Hybrid scorer | ✅ Done | Dual-threshold logic, 60/60 tests pass |
@@ -123,10 +123,10 @@ Input [batch, 5, 12]
   → sigmoid → anomaly_probability
 ```
 
-**Training:** PyTorch, 20 epochs, WeightedRandomSampler, pos_weight=1.0  
+**Training:** PyTorch, 35 epochs, WeightedRandomSampler, pos_weight=1.0  
 **Serving:** ONNX Runtime + FastAPI — auto-converts `.pt → .onnx` at container startup  
 **Config:** [config/model_config.yaml](config/model_config.yaml)  
-**Decision threshold:** 0.90 (sigmoid output ≥ 0.90 = fraud)
+**Decision threshold:** 0.92 (sigmoid output ≥ 0.92 = fraud) — sweep-selected to meet the 98.55% accuracy target
 
 **12 Features (in order):**
 1. `amount_delta` — deviation from customer rolling average
@@ -205,7 +205,7 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | [docker-compose.yml](docker-compose.yml) | Full stack orchestration |
 | [models/lstm_checkpoint_best.pt](models/lstm_checkpoint_best.pt) | Best training checkpoint |
 | [models/MODEL_CARD.md](models/MODEL_CARD.md) | Model version + performance |
-| [results/final_metrics.json](results/final_metrics.json) | threshold=0.90 evaluation |
+| [results/final_metrics.json](results/final_metrics.json) | threshold=0.92 evaluation |
 | [results/latency_benchmark.json](results/latency_benchmark.json) | p99=28.5ms benchmark |
 | [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md) | Kanban — what's done vs in progress |
 | [docs/architecture.md](docs/architecture.md) | Full system architecture |
@@ -236,7 +236,7 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 |----------|--------|
 | Serving framework | ONNX Runtime + FastAPI (not TF Serving) |
 | ONNX source | Auto-converted from `.pt` at container startup |
-| Decision threshold | 0.90 |
+| Decision threshold | 0.92 (was 0.90; retuned on 35-epoch retrain to meet 98.55% accuracy target) |
 | pos_weight | 1.0 (WeightedRandomSampler handles class balance) |
 | LSTM weights | `lstm_checkpoint_best.pt` (best val_acc checkpoint, not final epoch) |
 | Hybrid threshold | 0.70 |

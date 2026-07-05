@@ -59,7 +59,7 @@ services:
     environment:
       - MODEL_PATH=/models/lstm_fraud_detector.onnx
       - CHECKPOINT_PATH=/checkpoint/lstm_checkpoint_best.pt
-      - DECISION_THRESHOLD=${DECISION_THRESHOLD:-0.90}
+      - DECISION_THRESHOLD=${DECISION_THRESHOLD:-0.92}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/v1/models/lstm')"]
       interval: 15s
@@ -116,7 +116,7 @@ services:
       - PYTHONPATH=/app
       # Tests that call the LSTM API use this URL (Docker internal hostname)
       - LSTM_SERVING_URL=http://lstm-serving:8080
-      - DECISION_THRESHOLD=${DECISION_THRESHOLD:-0.90}
+      - DECISION_THRESHOLD=${DECISION_THRESHOLD:-0.92}
     # depends_on is honoured by `docker compose up` (not `run`).
     # Kept here for documentation purposes and future compose watch support.
     depends_on:

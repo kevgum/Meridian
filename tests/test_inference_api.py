@@ -19,7 +19,7 @@ from src.inference_client import LSTMInferenceClient
 # Read from env so the Docker dev container uses http://lstm-serving:8080
 # while local runs outside Docker fall back to http://localhost:8080
 BASE_URL = os.environ.get("LSTM_SERVING_URL", "http://localhost:8080")
-THRESHOLD = 0.90
+THRESHOLD = 0.92
 
 
 @pytest.fixture(scope="module")
