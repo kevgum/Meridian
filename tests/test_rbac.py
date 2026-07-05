@@ -185,25 +185,28 @@ class TestComplianceOfficerRole:
 class TestSeniorEngineerRole:
     """Verify that senior_security_engineer has write access where analyst does not."""
 
-    def test_engineer_can_write_to_kibana_index(self) -> None:
-        """senior_security_engineer CAN write to .kibana — can edit detection rules."""
+    def test_engineer_can_write_detection_rule_config(self) -> None:
+        """senior_security_engineer CAN write detection-rule config an analyst cannot.
+
+        Detection-rule / playbook configuration is stored in a meridian-* index.
+        The engineer role has write on ALL meridian-* indices; the analyst role
+        only has write on meridian-incidents*. We assert the boundary here rather
+        than on .kibana* because .kibana* is an Elasticsearch-protected restricted
+        index that cannot be created or written to directly, even by the superuser.
+        """
         engineer = _client(_ENGINEER_CREDS)
         admin = _admin_client()
+        index = "meridian-detection-rules-test"
 
-        # Pre-create the index as admin. In production the .kibana index already
-        # exists (Kibana creates it); the engineer role grants write access but
-        # not create_index on restricted .kibana* indices, by design.
-        if not admin.indices.exists(index=".kibana_rbac_test"):
-            admin.indices.create(index=".kibana_rbac_test")
-
-        # Write as engineer into the existing index
-        engineer.index(
-            index=".kibana_rbac_test",
-            document={"type": "detection_rule", "name": "test_rule_by_engineer"},
-            refresh=True,
-        )
-        # Cleanup — delete the test index using admin credentials
+        # Pre-create as admin (non-restricted meridian-* index).
+        if not admin.indices.exists(index=index):
+            admin.indices.create(index=index)
         try:
-            admin.indices.delete(index=".kibana_rbac_test", ignore_unavailable=True)
-        except Exception:  # noqa: BLE001
-            pass
+            # Engineer has meridian-* write privilege — this must succeed.
+            engineer.index(
+                index=index,
+                document={"type": "detection_rule", "name": "test_rule_by_engineer"},
+                refresh=True,
+            )
+        finally:
+            admin.indices.delete(index=index, ignore_unavailable=True)
