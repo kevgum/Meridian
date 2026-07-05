@@ -2,7 +2,7 @@
 
 Instead of relying on an external GitHub UI, this local markdown file serves as the project's issue tracker and Kanban board. You can move tasks between the columns as you progress through the 14-day execution plan.
 
-## 📋 BACKLOG
+## BACKLOG
 
 - [ ] **US-01:** Load & preprocess PaySim (Data Epic)
 - [ ] **US-02:** Log ingestion to Elasticsearch (Data Epic)
@@ -17,13 +17,13 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ---
 
-## 🏃 IN PROGRESS
+## IN PROGRESS
 
 *(Empty — Day 14 complete — build finished)*
 
 ---
 
-## 👀 REVIEW
+## REVIEW
 
 *(Move items here when testing or waiting for PR merge to `dev`)*
 
@@ -31,7 +31,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
 
 ---
 
-## ✅ DONE
+## DONE
 
 - [x] Initial Repository & Infrastructure Setup (Day 1)
 - [x] **US-01:** Load & preprocess PaySim — feature engineering pipeline (Day 2)
@@ -53,7 +53,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `docker-compose.yml` — lstm-serving + elasticsearch + kibana + logstash + healthchecks
   - [x] `src/inference_client.py` — REST client wrapper (predict + predict_batch)
   - [x] `tests/test_inference_api.py` — 7/7 smoke tests passing
-  - [x] `results/latency_benchmark.json` — p99: 28.5 ms (target < 200 ms ✓)
+  - [x] `results/latency_benchmark.json` — p99: 28.5 ms (target < 200 ms)
 
 - [x] **US-05:** SIEM detection rules — Day 7
   - [x] `src/siem/rule_engine.py` — ElasticSIEMCorrelator with 4 rules (amount, geo-velocity, off-hours, watchlist)
@@ -128,7 +128,7 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `ComplianceBadges.tsx` — APRA CPS 234, PCI DSS v4.0, Privacy Act 1988 status badges
   - [x] `vercel.json` — SPA rewrite rule for Vercel deployment
   - [x] Build passes: `npm run build` — zero TypeScript errors
-  - [x] Acceptance criteria: DetectionPanel shows FLAGGED — LSTM ALONE · 74% SUSPICIOUS ✅
+  - [x] Acceptance criteria: DetectionPanel shows FLAGGED — LSTM ALONE · 74% SUSPICIOUS
 
 - [x] **US-11:** RBAC — Day 9
   - [x] `scripts/bootstrap_rbac.py` — creates 6 ES roles + 6 test users + scoped API key via elasticsearch-py; idempotent
@@ -139,4 +139,4 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `.env.example` — added `ELASTIC_HOST` and `ELASTIC_API_KEY` variables
   - [x] `certs/.gitkeep` — tracks directory; private keys gitignored
   - [x] `docs/requirements_traceability_matrix.md` — US-01–US-11 → AT-1–AT-10 with gap analysis
-  - [x] `compliance/control_mapping.md` — RBAC, session timeout, incident management, audit rows updated to ✅
+  - [x] `compliance/control_mapping.md` — RBAC, session timeout, incident management, audit rows updated to

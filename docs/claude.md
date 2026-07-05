@@ -352,7 +352,7 @@ I'm building the Meridian Sentinel cybersecurity prototype for Meridian Financia
 
 - Hybrid LSTM + Elastic SIEM real-time fraud detection system
 - LSTM: 128→64 stacked units, 30% dropout, trained on PaySim (6.3M transactions)
-- Target: 98.55% accuracy, 0.50% FPR ✅ (already achieved in prototype)
+- Target: 98.55% accuracy, 0.50% FPR (already achieved in prototype)
 - SIEM: Elasticsearch 8.x + Kibana + Logstash + Filebeat (Docker)
 - Dashboard: React + TypeScript + Tailwind, dark theme, WCAG 2.2 AA
 - Compliance: APRA CPS 234, PCI DSS v4.0, Australian Privacy Act 1988

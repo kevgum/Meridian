@@ -12,8 +12,8 @@
 
 | Tier | Tests | Result |
 |------|-------|--------|
-| Unit (no Docker required) | 32 | ✅ 32/32 PASS |
-| Integration (live Docker stack) | 3 | ✅ 3/3 PASS |
+| Unit (no Docker required) | 32 | 32/32 PASS |
+| Integration (live Docker stack) | 3 | 3/3 PASS |
 | **Total** | **35** | **35/35 PASS** |
 
 Full suite run time: **3.43 seconds**
@@ -37,7 +37,7 @@ Command:    pytest tests/test_acceptance.py -v -m "not integration"
 
 ### AT-1 — Logstash Ingestion Latency ≤ 2 Seconds
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT1_IngestionLatency`  
 **Marker:** `@pytest.mark.integration`
 
@@ -52,12 +52,12 @@ ECS field rename, SHA-256 PII hash on `nameOrig`/`nameDest`, and float type coer
 
 ### AT-2 — LSTM Fraud Flag: anomaly_probability > 0.70
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT2_LSTMFraudFlag` (3 tests)  
 **Tests run:**
-- `test_e2e_documented_fraud_score_exceeds_threshold` ✅
-- `test_output_shape_is_scalar` ✅
-- `test_output_is_valid_probability` ✅
+- `test_e2e_documented_fraud_score_exceeds_threshold`
+- `test_output_shape_is_scalar`
+- `test_output_is_valid_probability`
 
 **Evidence:**
 
@@ -77,18 +77,18 @@ produced using PaySim-normalised features during the Day 8 end-to-end run.
 
 ### AT-3 — LSTM Clean Pass: anomaly_probability < 0.30
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT3_LSTMCleanPass` (2 tests)  
 **Tests run:**
-- `test_clean_tensor_below_threshold` ✅
-- `test_documented_fraud_score_exceeds_clean_tensor_score` ✅
+- `test_clean_tensor_below_threshold`
+- `test_documented_fraud_score_exceeds_clean_tensor_score`
 
 **Evidence:**
 
 | Tensor | Score | Threshold | Result |
 |--------|-------|-----------|--------|
-| Zero-feature baseline (5×12 zeros) | < 2.3×10⁻¹⁰ | < 0.30 | ✅ PASS |
-| CUST-18656 documented fraud score | 0.74 | > clean score | ✅ PASS |
+| Zero-feature baseline (5×12 zeros) | < 2.3×10⁻¹⁰ | < 0.30 | PASS |
+| CUST-18656 documented fraud score | 0.74 | > clean score | PASS |
 
 The model clearly discriminates between fraud and clean patterns: the documented  
 fraud score (0.74) far exceeds the clean baseline (≈ 0), confirming model integrity.
@@ -97,12 +97,12 @@ fraud score (0.74) far exceeds the clean baseline (≈ 0), confirming model inte
 
 ### AT-4 — SIEM Alert Latency < 1 Second
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT4_SIEMAlertLatency` (3 tests)  
 **Tests run:**
-- `test_rule_evaluation_under_one_second` ✅
-- `test_all_four_rules_evaluated` ✅
-- `test_high_risk_event_scores_above_zero` ✅
+- `test_rule_evaluation_under_one_second`
+- `test_all_four_rules_evaluated`
+- `test_high_risk_event_scores_above_zero`
 
 **Evidence:**
 
@@ -119,26 +119,26 @@ network calls. Latency is bounded by CPU time, well under the 1-second target.
 
 ### AT-5 — Playbook Containment: LOCK_ACCOUNT for threat_score ≥ 0.70
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT5_PlaybookContainment` (6 tests)  
 **Tests run:**
-- `test_playbook_fires_on_hybrid_threshold` ✅
-- `test_incident_record_has_required_fields` ✅
-- `test_containment_action_is_lock_account` ✅
-- `test_elasticsearch_write_attempted` ✅
-- `test_analyst_notification_logged` ✅
-- `test_playbook_does_not_fire_on_monitor` ✅
+- `test_playbook_fires_on_hybrid_threshold`
+- `test_incident_record_has_required_fields`
+- `test_containment_action_is_lock_account`
+- `test_elasticsearch_write_attempted`
+- `test_analyst_notification_logged`
+- `test_playbook_does_not_fire_on_monitor`
 
 **Evidence:**
 
 | Test | Assertion | Result |
 |------|-----------|--------|
-| Hybrid threshold fire | `verdict == FLAGGED`, `playbook_fired == True` | ✅ |
-| Incident fields | All 6 required fields present | ✅ |
-| Containment action | `action == LOCK_ACCOUNT` | ✅ |
-| ES write | `mock_es.index()` called once | ✅ |
-| Analyst notification | `INCIDENT CREATED` log at WARNING level | ✅ |
-| MONITOR path | `mock_engine.fire()` NOT called when score < 0.70 | ✅ |
+| Hybrid threshold fire | `verdict == FLAGGED`, `playbook_fired == True` | PASS |
+| Incident fields | All 6 required fields present | PASS |
+| Containment action | `action == LOCK_ACCOUNT` | PASS |
+| ES write | `mock_es.index()` called once | PASS |
+| Analyst notification | `INCIDENT CREATED` log at WARNING level | PASS |
+| MONITOR path | `mock_engine.fire()` NOT called when score < 0.70 | PASS |
 
 `PlaybookEngine` tested with injected `MagicMock` ES client — no live cluster required.
 
@@ -146,7 +146,7 @@ network calls. Latency is bounded by CPU time, well under the 1-second target.
 
 ### AT-6 — Analyst Triage: Alert Confirmation in Audit Log
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT6_AnalystAuditLog`  
 **Marker:** `@pytest.mark.integration`
 
@@ -161,53 +161,53 @@ Retrieved `status=CONFIRMED`, `analyst_id=test.analyst`. Proves analyst triage i
 
 ### AT-7 — Compliance Report Content
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT7_ComplianceReport` (8 tests)  
 **Tests run:**
-- `test_control_mapping_exists` ✅
-- `test_control_mapping_contains_apra_references` ✅
-- `test_control_mapping_contains_pci_dss_references` ✅
-- `test_control_mapping_contains_privacy_act` ✅
-- `test_control_mapping_contains_pii_hashing_evidence` ✅
-- `test_control_mapping_has_active_controls` ✅
-- `test_traceability_matrix_exists` ✅
-- `test_traceability_matrix_covers_all_acceptance_tests` ✅
+- `test_control_mapping_exists`
+- `test_control_mapping_contains_apra_references`
+- `test_control_mapping_contains_pci_dss_references`
+- `test_control_mapping_contains_privacy_act`
+- `test_control_mapping_contains_pii_hashing_evidence`
+- `test_control_mapping_has_active_controls`
+- `test_traceability_matrix_exists`
+- `test_traceability_matrix_covers_all_acceptance_tests`
 
 **Evidence:**
 
 | File | Required Content | Found | Result |
 |------|-----------------|-------|--------|
-| `compliance/control_mapping.md` | "APRA CPS 234" | ✅ | PASS |
-| `compliance/control_mapping.md` | "PCI DSS" | ✅ | PASS |
-| `compliance/control_mapping.md` | "Privacy Act" | ✅ | PASS |
-| `compliance/control_mapping.md` | "SHA-256" | ✅ | PASS |
-| `compliance/control_mapping.md` | ≥ 10 active controls (✅) | ✅ | PASS |
-| `docs/requirements_traceability_matrix.md` | AT-1 through AT-10 | ✅ | PASS |
+| `compliance/control_mapping.md` | "APRA CPS 234" | Yes | PASS |
+| `compliance/control_mapping.md` | "PCI DSS" | Yes | PASS |
+| `compliance/control_mapping.md` | "Privacy Act" | Yes | PASS |
+| `compliance/control_mapping.md` | "SHA-256" | Yes | PASS |
+| `compliance/control_mapping.md` | ≥ 10 active controls () | Yes | PASS |
+| `docs/requirements_traceability_matrix.md` | AT-1 through AT-10 | Yes | PASS |
 
 ---
 
 ### AT-8 — Dashboard Keyboard Navigation (WCAG 2.2 AA)
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT8_KeyboardNavigation` (6 tests)  
 **Tests run:**
-- `test_skip_to_content_link_present` ✅
-- `test_main_content_anchor_in_app` ✅
-- `test_interactive_elements_have_focus_rings` ✅
-- `test_buttons_have_aria_labels` ✅
-- `test_transaction_feed_has_keyboard_navigation` ✅
-- `test_accessibility_audit_documents_wcag_pass` ✅
+- `test_skip_to_content_link_present`
+- `test_main_content_anchor_in_app`
+- `test_interactive_elements_have_focus_rings`
+- `test_buttons_have_aria_labels`
+- `test_transaction_feed_has_keyboard_navigation`
+- `test_accessibility_audit_documents_wcag_pass`
 
 **Evidence:**
 
 | WCAG Criterion | Implementation | Test |
 |----------------|---------------|------|
-| SC 2.4.1 — Bypass Blocks | `<a href="#main-content">` skip link in `index.html` | ✅ |
-| Skip link target | `id="main-content"` on `<main>` in `App.tsx` | ✅ |
-| SC 2.4.7 — Focus Visible | `focus:ring` classes on all interactive elements | ✅ |
-| SC 4.1.2 — Name, Role, Value | `aria-label` on buttons in `AlertQueue.tsx` | ✅ |
-| SC 2.1.1 — Keyboard | `tabIndex={0}` on transaction feed rows | ✅ |
-| WCAG documentation | `docs/accessibility-audit.md` with PASS verdicts | ✅ |
+| SC 2.4.1 — Bypass Blocks | `<a href="#main-content">` skip link in `index.html` | PASS |
+| Skip link target | `id="main-content"` on `<main>` in `App.tsx` | PASS |
+| SC 2.4.7 — Focus Visible | `focus:ring` classes on all interactive elements | PASS |
+| SC 4.1.2 — Name, Role, Value | `aria-label` on buttons in `AlertQueue.tsx` | PASS |
+| SC 2.1.1 — Keyboard | `tabIndex={0}` on transaction feed rows | PASS |
+| WCAG documentation | `docs/accessibility-audit.md` with PASS verdicts | PASS |
 
 Full audit documented in [docs/accessibility-audit.md](../docs/accessibility-audit.md).
 
@@ -215,7 +215,7 @@ Full audit documented in [docs/accessibility-audit.md](../docs/accessibility-aud
 
 ### AT-9 — RBAC Denial: security_analyst Denied .kibana Write
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT9_RBACDenial`  
 **Marker:** `@pytest.mark.integration`
 
@@ -229,22 +229,22 @@ The security_analyst role is correctly scoped to `meridian-transactions-*`, `mer
 
 ### AT-10 — Retraining Pipeline: Model Retrains and Checkpoint Saves
 
-**Status:** ✅ PASS  
+**Status:** PASS  
 **Class:** `TestAT10_RetrainingPipeline` (4 tests)  
 **Tests run:**
-- `test_model_loads_from_checkpoint` ✅
-- `test_retraining_epoch_completes` ✅
-- `test_retrained_checkpoint_saves_and_reloads` ✅
-- `test_model_produces_valid_probabilities_after_retraining` ✅
+- `test_model_loads_from_checkpoint`
+- `test_retraining_epoch_completes`
+- `test_retrained_checkpoint_saves_and_reloads`
+- `test_model_produces_valid_probabilities_after_retraining`
 
 **Evidence:**
 
 | Step | Assertion | Result |
 |------|-----------|--------|
-| Load checkpoint | `isinstance(model, LSTMFraudDetector)` | ✅ |
-| 1 epoch on 300 synthetic samples | `0 < avg_loss < 10` | ✅ |
-| Save retrained checkpoint | `.pt` file > 0 bytes | ✅ |
-| Reload and infer | Output shape `[1]`, value in `[0.0, 1.0]` | ✅ |
+| Load checkpoint | `isinstance(model, LSTMFraudDetector)` | PASS |
+| 1 epoch on 300 synthetic samples | `0 < avg_loss < 10` | PASS |
+| Save retrained checkpoint | `.pt` file > 0 bytes | PASS |
+| Reload and infer | Output shape `[1]`, value in `[0.0, 1.0]` | PASS |
 
 Configuration: 300 synthetic samples, 1 epoch, `Adam(lr=1e-4)`, `BCEWithLogitsLoss(pos_weight=1.0)`,  
 batch_size=32, `torch.manual_seed(42)`.
@@ -255,16 +255,16 @@ batch_size=32, `torch.manual_seed(42)`.
 
 | Test | Acceptance Criterion | Status | Evidence |
 |------|---------------------|--------|---------|
-| AT-1 | Log → ES within 2s | ✅ PASS | JSON event indexed in `meridian-transactions-*` within 2s |
-| AT-2 | lstm_score > 0.70 for fraud | ✅ PASS | `e2e_test_cust18656.json` — 0.74 |
-| AT-3 | lstm_score < 0.30 for clean | ✅ PASS | Zero tensor ≈ 0 < 0.30 |
-| AT-4 | SIEM alert < 1s | ✅ PASS | Pure Python eval, < 10 ms |
-| AT-5 | Playbook fires LOCK_ACCOUNT | ✅ PASS | 6/6 assertions with mock ES |
-| AT-6 | Analyst close → audit log | ✅ PASS | `test_analyst` writes CONFIRMED to incidents index |
-| AT-7 | Compliance docs complete | ✅ PASS | 3 frameworks, 10+ active controls |
-| AT-8 | Keyboard navigation (WCAG 2.2 AA) | ✅ PASS | 6 source/audit file checks |
-| AT-9 | RBAC 403 for analyst → .kibana | ✅ PASS | HTTP 403 security_exception confirmed |
-| AT-10 | Retrain pipeline completes | ✅ PASS | 1 epoch, checkpoint saved + reloaded |
+| AT-1 | Log → ES within 2s | PASS | JSON event indexed in `meridian-transactions-*` within 2s |
+| AT-2 | lstm_score > 0.70 for fraud | PASS | `e2e_test_cust18656.json` — 0.74 |
+| AT-3 | lstm_score < 0.30 for clean | PASS | Zero tensor ≈ 0 < 0.30 |
+| AT-4 | SIEM alert < 1s | PASS | Pure Python eval, < 10 ms |
+| AT-5 | Playbook fires LOCK_ACCOUNT | PASS | 6/6 assertions with mock ES |
+| AT-6 | Analyst close → audit log | PASS | `test_analyst` writes CONFIRMED to incidents index |
+| AT-7 | Compliance docs complete | PASS | 3 frameworks, 10+ active controls |
+| AT-8 | Keyboard navigation (WCAG 2.2 AA) | PASS | 6 source/audit file checks |
+| AT-9 | RBAC 403 for analyst → .kibana | PASS | HTTP 403 security_exception confirmed |
+| AT-10 | Retrain pipeline completes | PASS | 1 epoch, checkpoint saved + reloaded |
 
 **35/35 PASS — full suite (unit + integration) in 3.43 seconds**
 

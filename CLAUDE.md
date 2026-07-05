@@ -35,15 +35,15 @@ threat_score = (lstm_score × 0.60) + (siem_score × 0.40)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| LSTM model | ✅ Trained + committed | 98.86% acc, 1.10% FPR, 63.8% recall at threshold=0.92 (35-epoch retrain) |
-| ONNX serving (FastAPI) | ✅ Running | p99=28.5ms, 7/7 smoke tests pass |
-| Elastic SIEM stack | ✅ Done | Rule engine live, ECS Logstash pipeline, 22/22 tests pass |
-| Hybrid scorer | ✅ Done | Dual-threshold logic, 60/60 tests pass |
-| Playbook engine | ✅ Done | ES write + mock analyst notification, injected ES client |
-| RBAC | ✅ Done | 6 roles, bootstrap script, AT-9 integration tests |
-| React dashboard (Day 10) | ✅ Done | Vite+TS, 6 components, mock data, Vercel-ready |
-| React dashboard (Day 11) | ✅ Done | Live ES polling, WCAG 2.2 AA, session timeout, drawer, re-deployed |
-| Acceptance tests (Day 12) | ✅ Done | 35/35 PASS with live stack; 32/35 without Docker |
+| LSTM model | Trained + committed | 98.86% acc, 1.10% FPR, 63.8% recall at threshold=0.92 (35-epoch retrain) |
+| ONNX serving (FastAPI) | Running | p99=28.5ms, 7/7 smoke tests pass |
+| Elastic SIEM stack | Done | Rule engine live, ECS Logstash pipeline, 22/22 tests pass |
+| Hybrid scorer | Done | Dual-threshold logic, 60/60 tests pass |
+| Playbook engine | Done | ES write + mock analyst notification, injected ES client |
+| RBAC | Done | 6 roles, bootstrap script, AT-9 integration tests |
+| React dashboard (Day 10) | Done | Vite+TS, 6 components, mock data, Vercel-ready |
+| React dashboard (Day 11) | Done | Live ES polling, WCAG 2.2 AA, session timeout, drawer, re-deployed |
+| Acceptance tests (Day 12) | Done | 35/35 PASS with live stack; 32/35 without Docker |
 
 Active branch: `main`  
 Main branch: `main`
@@ -54,7 +54,7 @@ Main branch: `main`
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Acceptance tests | ✅ Done | `tests/test_acceptance.py` — 35/35 PASS (3.43s with live stack; 32/35 unit-only) |
+| Acceptance tests | Done | `tests/test_acceptance.py` — 35/35 PASS (3.43s with live stack; 32/35 unit-only) |
 
 ---
 
@@ -62,9 +62,9 @@ Main branch: `main`
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Live integration tests | ✅ Done | 35/35 PASS with full Docker stack (`results/acceptance_test_report.md`) |
-| Security review | ✅ Done | Credential scan clean; ZAP baseline 0 FAIL / 6 WARN low-info (`results/security_review.md`) |
-| Prototype tag | ✅ Done | `v1.0.0-prototype` on `main` |
+| Live integration tests | Done | 35/35 PASS with full Docker stack (`results/acceptance_test_report.md`) |
+| Security review | Done | Credential scan clean; ZAP baseline 0 FAIL / 6 WARN low-info (`results/security_review.md`) |
+| Prototype tag | Done | `v1.0.0-prototype` on `main` |
 
 ---
 
@@ -72,10 +72,10 @@ Main branch: `main`
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| README.md | ✅ Done | Updated to Days 9–14; adds dashboard quickstart, RBAC bootstrap, release table |
-| Analyst guide | ✅ Done | `docs/analyst-guide.md` — full triage workflow, CUST-18656 walkthrough |
-| Runbook | ✅ Done | `docs/runbook.md` — startup, RBAC, retraining, incident response, failures |
-| Retrospective | ✅ Done | `docs/retrospective.md` — what worked, gaps, production hardening notes |
+| README.md | Done | Updated to Days 9–14; adds dashboard quickstart, RBAC bootstrap, release table |
+| Analyst guide | Done | `docs/analyst-guide.md` — full triage workflow, CUST-18656 walkthrough |
+| Runbook | Done | `docs/runbook.md` — startup, RBAC, retraining, incident response, failures |
+| Retrospective | Done | `docs/retrospective.md` — what worked, gaps, production hardening notes |
 
 **14-day build complete. `v1.0.0-prototype` on `main`.**
 

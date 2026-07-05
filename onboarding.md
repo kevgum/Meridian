@@ -140,7 +140,7 @@ First run takes **5–8 minutes** (image downloads). Subsequent runs take **unde
 
 Expected output when everything is working:
 ```
-▶ Stack is up
+Stack is up
 
   LSTM Inference API  ->  http://localhost:8080/v1/models/lstm
   Kibana              ->  http://localhost:5601  (elastic / meridian123)

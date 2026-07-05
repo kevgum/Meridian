@@ -297,7 +297,7 @@ Run against `http://localhost:8080` on a local machine (Windows 11, Docker Deskt
 | mean | 12.73 ms | — |
 | p50 | ~12 ms | — |
 | p95 | 27.76 ms | — |
-| p99 | **28.5 ms** | < 200 ms ✅ |
+| p99 | **28.5 ms** | < 200 ms |
 
 Full results in `results/latency_benchmark.json`.  
 Run the benchmark: `python -m src.benchmark`

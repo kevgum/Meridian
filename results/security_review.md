@@ -16,12 +16,12 @@
 
 | Check | Result |
 |-------|--------|
-| `.env` tracked by git | ✅ Not tracked — only `.env.example` |
-| `certs/*.key`, `certs/*.crt` tracked | ✅ Not tracked |
-| `models/*.onnx` tracked | ✅ Not tracked (generated at container startup) |
-| Hardcoded production credentials | ✅ None found |
-| AWS access keys / GitHub tokens | ✅ None found |
-| Private key material in repo | ✅ None found |
+| `.env` tracked by git | Not tracked — only `.env.example` |
+| `certs/*.key`, `certs/*.crt` tracked | Not tracked |
+| `models/*.onnx` tracked | Not tracked (generated at container startup) |
+| Hardcoded production credentials | None found |
+| AWS access keys / GitHub tokens | None found |
+| Private key material in repo | None found |
 
 ### `meridian123` Occurrences
 
@@ -99,10 +99,10 @@ This is documented as a hardening recommendation, not applied in this prototype 
 
 | Area | Status |
 |------|--------|
-| No committed credentials, keys, or certs | ✅ Pass |
-| `.env` correctly gitignored | ✅ Pass |
-| ZAP baseline scan completed | ✅ Pass — 0 FAIL, 6 WARN (low/info), 60 PASS — see `zap_report.html` |
+| No committed credentials, keys, or certs | Pass |
+| `.env` correctly gitignored | Pass |
+| ZAP baseline scan completed | Pass — 0 FAIL, 6 WARN (low/info), 60 PASS — see `zap_report.html` |
 | Findings requiring immediate fix | None — all 6 warnings are low/informational missing-header findings |
-| Hardening notes documented for production | ✅ See sections above |
+| Hardening notes documented for production | See sections above |
 
 This prototype is acceptable for submission as-is. The findings above are standard for any SPA deployed without a custom CDN security header configuration and do not represent exploitable vulnerabilities in the current mock-data demo state.
