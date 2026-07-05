@@ -190,7 +190,13 @@ class TestSeniorEngineerRole:
         engineer = _client(_ENGINEER_CREDS)
         admin = _admin_client()
 
-        # Write as engineer
+        # Pre-create the index as admin. In production the .kibana index already
+        # exists (Kibana creates it); the engineer role grants write access but
+        # not create_index on restricted .kibana* indices, by design.
+        if not admin.indices.exists(index=".kibana_rbac_test"):
+            admin.indices.create(index=".kibana_rbac_test")
+
+        # Write as engineer into the existing index
         engineer.index(
             index=".kibana_rbac_test",
             document={"type": "detection_rule", "name": "test_rule_by_engineer"},
