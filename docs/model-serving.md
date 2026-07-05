@@ -99,7 +99,7 @@ COPY docker/convert_to_onnx.py  /app/convert_to_onnx.py
 
 ENV MODEL_PATH=/models/lstm_fraud_detector.onnx
 ENV CHECKPOINT_PATH=/checkpoint/lstm_checkpoint_best.pt
-ENV DECISION_THRESHOLD=0.90
+ENV DECISION_THRESHOLD=0.92
 
 EXPOSE 8080
 

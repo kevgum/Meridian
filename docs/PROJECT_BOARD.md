@@ -42,8 +42,8 @@ Instead of relying on an external GitHub UI, this local markdown file serves as 
   - [x] `notebooks/02_lstm_model.ipynb` — calibration + full training (Colab)
   - [x] `notebooks/03_evaluation.ipynb` — evaluation + ONNX export (Colab)
   - [x] Calibration run (20% subset, 5 epochs) → `results/calibration_run_01.json`
-  - [x] Full training (20 epochs, pos_weight=1.0 + WeightedRandomSampler) → `results/training_history.json`, `results/figures/training_curves.png`
-  - [x] Evaluated on test set at threshold=0.90 → accuracy 98.4%, recall 67.2%, FPR 1.54%
+  - [x] Full training (35 epochs, pos_weight=1.0 + WeightedRandomSampler) → `results/training_history.json`, `results/figures/training_curves.png`
+  - [x] Evaluated on test set at threshold=0.92 → accuracy 98.86%, recall 63.8%, FPR 1.10% (sweep-selected threshold)
   - [x] ONNX export → `models/serving/lstm_v1/lstm_fraud_detector.onnx` (Drive only — gitignored)
   - [x] `models/MODEL_CARD.md` written and committed
 

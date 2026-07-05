@@ -106,7 +106,7 @@ The defaults work for local development without any changes. The `.env` file is 
 |----------|---------|-------|
 | `ELASTIC_PASSWORD` | `meridian123` | Change this for any shared or cloud environment |
 | `LSTM_SERVING_URL` | `http://localhost:8080` | Internal Docker network uses `http://lstm-serving:8080` |
-| `DECISION_THRESHOLD` | `0.90` | Fraud classification threshold (tuned in Day 5) |
+| `DECISION_THRESHOLD` | `0.92` | Fraud classification threshold (sweep-tuned on 35-epoch retrain) |
 
 ---
 
@@ -214,7 +214,7 @@ docker compose logs lstm-serving --tail 50
 
 ## 8. Understanding the Model Input Format
 
-The LSTM expects sequences of 5 transactions × 12 features (`[batch, 5, 12]`) posted to `POST http://localhost:8080/v1/models/lstm:predict`. Sigmoid output ≥ 0.90 = fraud.
+The LSTM expects sequences of 5 transactions × 12 features (`[batch, 5, 12]`) posted to `POST http://localhost:8080/v1/models/lstm:predict`. Sigmoid output ≥ 0.92 = fraud.
 
 Full feature list and API reference: [docs/model-serving.md](docs/model-serving.md). All 12 feature definitions: [CLAUDE.md](CLAUDE.md) → "12 Features" section.
 
@@ -248,7 +248,7 @@ Quick reference:
 |----------|--------|
 | ML framework | PyTorch (train) + ONNX Runtime (serve) |
 | Inference API | FastAPI + uvicorn (not TF Serving) |
-| Decision threshold | 0.90 sigmoid output |
+| Decision threshold | 0.92 sigmoid output |
 | Class imbalance | WeightedRandomSampler + pos_weight=1.0 |
 | Hybrid threshold | ≥ 0.70 triggers playbook |
 

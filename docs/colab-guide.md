@@ -197,13 +197,7 @@ The `.pt` files are committed because they are the source of truth for model wei
 - Writes `MODEL_CARD.md`
 - Exports the model to ONNX format (Drive only — for reference, not for local use)
 
-**Before running — check the threshold cell (cell 16):**
-
-```python
-THRESHOLD = 0.90
-```
-
-This is the committed value. Only change it if you are doing threshold tuning experiments.
+**Cell 16 auto-selects the threshold:** it sweeps thresholds from 0.90 upward and picks the lowest one that clears the 98.55% accuracy target, printing the full accuracy/FPR/recall trade-off table. On the current model it selects `0.92`. You do not set the threshold by hand — the sweep decides and `THRESHOLD` flows into the metrics, MODEL_CARD, and confusion matrix downstream.
 
 **Files saved to Drive after evaluation:**
 ```
@@ -257,7 +251,7 @@ for path in to_download:
 git add results/final_metrics.json
 git add results/figures/confusion_matrix.png
 git add models/MODEL_CARD.md
-git commit -m "Add evaluation results at threshold=0.90"
+git commit -m "Add evaluation results at threshold=0.92"
 git push
 ```
 

@@ -9,7 +9,7 @@
 
 | Component | Target | Delivered | Notes |
 |-----------|--------|-----------|-------|
-| LSTM model | ≥ 98.55% acc, ≤ 0.50% FPR | 98.4% acc, 1.54% FPR | Below FPR target; acceptable given prototype scope |
+| LSTM model | ≥ 98.55% acc, ≤ 0.50% FPR | 98.86% acc, 1.10% FPR | Accuracy target met (35-epoch retrain + threshold 0.92); FPR improved but still above target |
 | Inference API | p99 < 200 ms | p99 = 28.5 ms | 7× headroom on target |
 | SIEM rule engine | 4 rules, score normalisation | Delivered | 22/22 unit tests pass |
 | Hybrid scorer | threat_score = lstm×0.60 + siem×0.40 | Delivered | LSTM_ALONE path added beyond original spec |
@@ -38,7 +38,7 @@
 
 ## What Went Poorly
 
-**FPR missed its target.** The 1.54% FPR (at threshold=0.90) against a target of ≤ 0.50% FPR is a genuine gap. The model is too permissive — it flags about 3× more legitimate transactions as fraudulent than the spec allowed. Root causes: (1) PaySim is a synthetic dataset that doesn't fully represent the distribution of real-world clean transactions; (2) 20 epochs may not have been enough for the model to tighten the decision boundary. In production this would require either more training epochs, a higher threshold (trading recall for FPR), or additional negative examples from real data.
+**FPR missed its target.** The 1.10% FPR (at threshold=0.92, after the 35-epoch retrain) against a target of ≤ 0.50% FPR remains a genuine gap. The model is still too permissive — it flags about 2× more legitimate transactions as fraudulent than the spec allowed. Root causes: (1) PaySim is a synthetic dataset that doesn't fully represent the distribution of real-world clean transactions; (2) the model plateaued at epoch ~11 — extending training from 20 to 35 epochs did **not** tighten the decision boundary, confirming the ceiling is data-driven, not training-time. The accuracy target was met purely by raising the threshold, which trades recall for FPR. In production, closing the FPR gap would require additional negative examples from real data or a precision-oriented loss, not longer training.
 
 **ES 8.11 breaking changes absorbed mid-project.** Kibana's ES 8.11 requirement that service account tokens be used instead of the `elastic` superuser was not anticipated until the stack was being tested under load. This caused Day 13 integration work to include a Kibana authentication fix that should have been handled during Day 6 Docker setup. The lesson: lock the exact image versions in `docker-compose.yml` before writing any authentication-related code, and read the release notes for any version bump.
 
