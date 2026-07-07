@@ -6,6 +6,22 @@ A one-page guide for presenting the system live. Follow top to bottom.
 
 ## Before the presentation (do once, ~5 min)
 
+**First, start Docker Desktop** (the stack runs in Docker):
+
+- Open **Docker Desktop** from the Start menu and wait until it says
+  *"Engine running"* (about 30-60 seconds).
+- Or launch it from PowerShell and wait for the engine:
+  ```powershell
+  Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+  # wait until this prints "running":
+  do { docker info *>$null; if ($?) { "running"; break }; Start-Sleep 5 } while ($true)
+  ```
+
+If you see `failed to connect to the docker API ... The system cannot find the
+file specified`, Docker Desktop is not up yet - start it and wait.
+
+Then bring up the stack and run the tests:
+
 ```powershell
 # 1. Start the whole stack and run the tests
 .\start.ps1
@@ -20,11 +36,14 @@ python scripts/demo_scenarios.py --live
 Then import the Kibana dashboard once (Kibana -> Stack Management -> Saved Objects
 -> Import -> `kibana/meridian_overview.ndjson`). Full steps: [../kibana/README.md](../kibana/README.md).
 
-**Decide your demo mode from the rehearsal:**
-- If scenario 2 (slow burn) shows an AI score >= 0.70 in `--live`, present in live mode.
-- If it shows < 0.70, present the **offline** demo (`python scripts/demo_scenarios.py`)
-  for the story and use `--live` only to populate Kibana. The offline story is
-  identical and always correct.
+**About the two modes:**
+- **Offline** (`python scripts/demo_scenarios.py`) - no Docker needed, tells the
+  full story. Your safe default.
+- **Live** (`--live`) - runs the SIEM rules for real and writes the incidents and
+  transactions into Elasticsearch so they show up in the Kibana dashboard. The AI
+  scores are representative in both modes (labelled `representative`): the served
+  model only scores inputs from its exact training distribution, so hand-built
+  demo windows can't drive it. Both modes tell the same, correct story.
 
 ---
 
@@ -33,9 +52,9 @@ Then import the Kibana dashboard once (Kibana -> Stack Management -> Saved Objec
 Run it on screen:
 
 ```powershell
-python scripts/demo_scenarios.py          # offline (guaranteed clean)
+python scripts/demo_scenarios.py          # offline (no Docker needed)
 # or
-python scripts/demo_scenarios.py --live   # live model + writes to Kibana
+python scripts/demo_scenarios.py --live   # real rules + writes to Kibana
 ```
 
 Walk through the six scenarios. What to say for each:
@@ -86,10 +105,9 @@ security rules at 40%.
 
 | Problem | Fix |
 |---------|-----|
-| `docker daemon is not running` | Start Docker Desktop, wait, retry `.\start.ps1`. |
+| `failed to connect to the docker API` / `docker daemon is not running` | Start Docker Desktop, wait for "Engine running", retry. |
 | Demo `--live` cannot reach Elasticsearch | Run `docker compose up -d`, wait ~20 s, retry. |
 | Kibana panels empty | Widen the date picker; re-run `python scripts/demo_scenarios.py --live`. |
-| Live AI scores look wrong | Fall back to offline: `python scripts/demo_scenarios.py`. |
 | A test fails on first boot | Logstash/RBAC may not be ready — re-run `docker compose --profile dev run --rm dev pytest tests/ -v`. |
 
 **Golden rule:** if anything looks off live, switch to offline mode. Same story,
