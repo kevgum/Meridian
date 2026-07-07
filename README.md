@@ -135,6 +135,7 @@ Response: `{"predictions": [[0.74]]}` — score ≥ 0.92 = fraud (set via `DECIS
 | [onboarding.md](onboarding.md) | New team member setup — prerequisites, clone, env config, stack startup, RBAC bootstrap |
 | [docs/runbook.md](docs/runbook.md) | Operational procedures — startup, stopping, health checks, retraining, incident response, TLS, common failures |
 | [docs/analyst-guide.md](docs/analyst-guide.md) | SOC dashboard walkthrough — how to triage an alert, read threat scores, use the investigation drawer, CUST-18656 worked example |
+| [docs/demo-runsheet.md](docs/demo-runsheet.md) | One-page presentation guide — pre-flight, the detection demo, Kibana walkthrough, talking points, and fallbacks |
 | [docs/architecture.md](docs/architecture.md) | Full system design — component diagram, data flow, RBAC model, compliance control mapping (APRA / PCI DSS / Privacy Act) |
 
 ### For the ML pipeline
