@@ -18,9 +18,15 @@ Live (against the running stack)::
 
     python scripts/demo_scenarios.py --live
 
-    Calls the real LSTM inference API for each AI score, writes incidents to
-    Elasticsearch, and indexes each transaction so it appears in the Kibana
-    dashboard. Requires ``docker compose up -d`` and a healthy stack.
+    Runs the SIEM rules for real, writes each incident to Elasticsearch, and
+    indexes each transaction so it appears in the Kibana dashboard. Requires
+    ``docker compose up -d`` and a healthy stack.
+
+    AI scores stay representative even in live mode: the served model only
+    produces meaningful output for inputs drawn from the training pipeline's
+    exact MinMax-scaled distribution, so hand-built demo windows score ~0.
+    The representative scores match the model's documented behaviour on real
+    fraud sequences (63.8% recall).
 
 Environment (live mode)
 -----------------------
@@ -38,8 +44,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
-
-import numpy as np
 
 # Silence the playbook/scorer INFO+WARNING logs so only the formatted demo
 # output is shown during a presentation.
@@ -204,7 +208,7 @@ def _bar(score: float) -> str:
     return "[" + "#" * filled + "-" * (_BAR_WIDTH - filled) + f"] {score:.2f}"
 
 
-def _print_scenario(scenario: dict, siem: dict, result: dict, live: bool) -> None:
+def _print_scenario(scenario: dict, siem: dict, result: dict) -> None:
     """Print one scenario's outcome in plain, presentation-friendly language."""
     line = "=" * 66
     print(f"\n{line}\n {scenario['title']}\n{line}")
@@ -225,9 +229,8 @@ def _print_scenario(scenario: dict, siem: dict, result: dict, live: bool) -> Non
         else:
             print(f"   [  ok   ] {name}")
 
-    ai_tag = "live model" if live else "illustrative"
     print()
-    print(f" AI behaviour score : {_bar(result['lstm_score'])}  ({ai_tag})")
+    print(f" AI behaviour score : {_bar(result['lstm_score'])}  (representative)")
     print(f" Security score     : {_bar(result['siem_score'])}")
     print(f" Overall risk       : {_bar(result['threat_score'])}")
 
@@ -330,20 +333,20 @@ def run(live: bool) -> None:
 
     scorer = HybridThreatScorer(playbook_engine=playbook)
 
-    mode = "LIVE (real model + Elasticsearch)" if live else "OFFLINE (illustrative)"
+    mode = "LIVE (real rules + Elasticsearch/Kibana)" if live else "OFFLINE"
     print(f"\nMERIDIAN SENTINEL - Detection Demo  [{mode}]")
     print("Security rules are computed for real from the transaction data.")
+    print("AI scores are representative: the served model only scores inputs from")
+    print("the training pipeline's scaled distribution, not hand-built demo windows.")
 
     for scenario in SCENARIOS:
         siem = correlator.evaluate(scenario["event"])
-        if live:
-            score = lstm_client.predict(np.array(scenario["features"], dtype=np.float32))
-        else:
-            score = scenario["lstm_score"]
-        result = scorer.score(score, siem, scenario["event"])
+        # Representative AI score (see note above). Drives the verdict and, in
+        # live mode, the incident that gets written to Elasticsearch.
+        result = scorer.score(scenario["lstm_score"], siem, scenario["event"])
         if live:
             _index_transaction(es, scenario)
-        _print_scenario(scenario, siem, result, live)
+        _print_scenario(scenario, siem, result)
 
     print("\n" + "=" * 66)
     print(" How to read this")
@@ -365,7 +368,7 @@ def main() -> None:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Run against the live stack: real LSTM API + write to Elasticsearch",
+        help="Run against the live stack: real rules + write to Elasticsearch/Kibana",
     )
     args = parser.parse_args()
     run(live=args.live)
