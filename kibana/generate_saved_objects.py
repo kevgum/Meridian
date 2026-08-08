@@ -40,6 +40,23 @@ FIELD_CHANNEL = "transaction.type.keyword"   # PAYMENT / TRANSFER / CASH_OUT ...
 FIELD_IS_FRAUD = "labels.is_fraud"           # integer 0 (legit) / 1 (fraud)
 FIELD_SEVERITY = "severity.keyword"          # CRITICAL / HIGH
 
+# --- Brand palette -------------------------------------------------------
+# The same three signal colours the analyst console uses, so Kibana and the
+# dashboard read as one product rather than two separately-styled artefacts.
+# The source of truth is ``frontend/src/tokens.css``; these are the sRGB
+# equivalents of --color-accent, --color-pass and --color-warn.
+#
+# Orange carries neutral, "business as usual" volume; red is reserved for
+# warnings; green for a clean/pass state.
+#
+# These are ink-grade values chosen against a white surface, which is what
+# Kibana's light theme gives a panel. Kibana picks the metric label colour by
+# luminance, and both choices clear WCAG AA on these fills — black on orange is
+# 6.3:1, white on red is 7.5:1.
+COLOR_ORANGE = "#DD6B0D"   # main brand accent — neutral volume metrics
+COLOR_GREEN = "#1B7A4F"    # pass / safe
+COLOR_RED = "#A5122B"      # warning / flagged for review
+
 
 def _search_source(index_ref: str, query: str = "") -> str:
     """Build the searchSourceJSON string that links a saved object to a data view."""
@@ -77,8 +94,10 @@ def data_view(dv_id: str, title: str, time_field: str | None) -> dict:
     }
 
 
-def metric_viz(viz_id: str, title: str, subtitle: str, dv_id: str, query: str = "") -> dict:
-    """A single big-number 'metric' visualisation."""
+def metric_viz(
+    viz_id: str, title: str, subtitle: str, dv_id: str, query: str = "", bg_color: str = COLOR_ORANGE
+) -> dict:
+    """A single big-number 'metric' visualisation with a flat brand-colour fill."""
     vis_state = {
         "title": title,
         "type": "metric",
@@ -98,8 +117,8 @@ def metric_viz(viz_id: str, title: str, subtitle: str, dv_id: str, query: str = 
                 "labels": {"show": True},
                 "invertColors": False,
                 "style": {
-                    "bgFill": "#000",
-                    "bgColor": False,
+                    "bgFill": bg_color,
+                    "bgColor": True,
                     "labelColor": False,
                     "subText": subtitle,
                     "fontSize": 48,
@@ -126,7 +145,9 @@ def metric_viz(viz_id: str, title: str, subtitle: str, dv_id: str, query: str = 
     }
 
 
-def filters_pie(viz_id: str, title: str, dv_id: str, filters: list[tuple[str, str]]) -> dict:
+def filters_pie(
+    viz_id: str, title: str, dv_id: str, filters: list[tuple[str, str]], colors: dict[str, str] | None = None
+) -> dict:
     """A donut pie split by labelled filters (readable slice names)."""
     vis_state = {
         "title": title,
@@ -155,10 +176,12 @@ def filters_pie(viz_id: str, title: str, dv_id: str, filters: list[tuple[str, st
             "labels": {"show": True, "values": True, "last_level": True, "truncate": 100},
         },
     }
-    return _viz_object(viz_id, title, vis_state, dv_id)
+    return _viz_object(viz_id, title, vis_state, dv_id, colors=colors)
 
 
-def terms_pie(viz_id: str, title: str, dv_id: str, field: str, size: int = 5) -> dict:
+def terms_pie(
+    viz_id: str, title: str, dv_id: str, field: str, size: int = 5, colors: dict[str, str] | None = None
+) -> dict:
     """A donut pie split by the top values of a field."""
     vis_state = {
         "title": title,
@@ -189,10 +212,12 @@ def terms_pie(viz_id: str, title: str, dv_id: str, field: str, size: int = 5) ->
             "labels": {"show": True, "values": True, "last_level": True, "truncate": 100},
         },
     }
-    return _viz_object(viz_id, title, vis_state, dv_id)
+    return _viz_object(viz_id, title, vis_state, dv_id, colors=colors)
 
 
-def terms_bar(viz_id: str, title: str, dv_id: str, field: str, size: int = 6) -> dict:
+def terms_bar(
+    viz_id: str, title: str, dv_id: str, field: str, size: int = 6, colors: dict[str, str] | None = None
+) -> dict:
     """A vertical bar chart of the top values of a field."""
     vis_state = {
         "title": title,
@@ -259,7 +284,7 @@ def terms_bar(viz_id: str, title: str, dv_id: str, field: str, size: int = 6) ->
             "labels": {"show": True},
         },
     }
-    return _viz_object(viz_id, title, vis_state, dv_id)
+    return _viz_object(viz_id, title, vis_state, dv_id, colors=colors)
 
 
 def markdown_viz(viz_id: str, title: str, markdown: str) -> dict:
@@ -285,14 +310,15 @@ def markdown_viz(viz_id: str, title: str, markdown: str) -> dict:
     }
 
 
-def _viz_object(viz_id: str, title: str, vis_state: dict, dv_id: str) -> dict:
+def _viz_object(viz_id: str, title: str, vis_state: dict, dv_id: str, colors: dict[str, str] | None = None) -> dict:
+    ui_state = {"vis": {"colors": colors}} if colors else {}
     return {
         "id": viz_id,
         "type": "visualization",
         "attributes": {
             "title": title,
             "visState": json.dumps(vis_state),
-            "uiStateJSON": "{}",
+            "uiStateJSON": json.dumps(ui_state),
             "description": "",
             "kibanaSavedObjectMeta": {
                 "searchSourceJSON": _search_source(
@@ -367,7 +393,9 @@ def dashboard(dash_id: str, title: str, description: str, panels: list[dict]) ->
             "version": 1,
             "timeRestore": True,
             "timeTo": "now",
-            "timeFrom": "now-30d",
+            # 90 days, not 30: demo data is seeded across several past runs and a
+            # 30-day window hides most of it, leaving panels looking near-empty.
+            "timeFrom": "now-90d",
             "refreshInterval": {"pause": True, "value": 0},
             "kibanaSavedObjectMeta": {
                 "searchSourceJSON": json.dumps({"query": {"query": "", "language": "kuery"}, "filter": []})
@@ -385,7 +413,10 @@ INTRO_MARKDOWN = (
     "- **Total Transactions Processed** — every payment the system checked.\n"
     "- **Suspected Fraud Detected** — payments the system flagged as unusual.\n"
     "- **Security Incidents Raised** — flagged cases sent to a human analyst to review.\n\n"
-    "In the charts below, **green means safe** and **red means flagged for review**. "
+    "The colours below are the same ones used in the analyst console:\n\n"
+    "- **Orange** — ordinary volume. Nothing is wrong; this is the day's traffic.\n"
+    "- **Green** — a clean, passing check.\n"
+    "- **Red** — flagged for review by a human.\n\n"
     "Use the date picker at the top right to change the time period."
 )
 
@@ -407,11 +438,12 @@ def build() -> list[dict]:
     )
     objects.append(
         metric_viz("viz-fraud-detected", "Suspected Fraud Detected",
-                   "flagged as unusual", DV_TRANSACTIONS, query=f"{FIELD_IS_FRAUD}:1")
+                   "flagged as unusual", DV_TRANSACTIONS, query=f"{FIELD_IS_FRAUD}:1",
+                   bg_color=COLOR_RED)
     )
     objects.append(
         metric_viz("viz-incidents-open", "Security Incidents Raised",
-                   "sent to an analyst", DV_INCIDENTS)
+                   "sent to an analyst", DV_INCIDENTS, bg_color=COLOR_RED)
     )
 
     # Charts
@@ -420,15 +452,18 @@ def build() -> list[dict]:
             "viz-fraud-pie", "Legitimate vs Suspected Fraud", DV_TRANSACTIONS,
             filters=[("Legitimate", f"{FIELD_IS_FRAUD}:0"),
                      ("Suspected Fraud", f"{FIELD_IS_FRAUD}:1")],
+            colors={"Legitimate": COLOR_GREEN, "Suspected Fraud": COLOR_RED},
         )
     )
     objects.append(
         terms_bar("viz-channel-bar", "Transactions by Payment Channel",
-                  DV_TRANSACTIONS, FIELD_CHANNEL)
+                  DV_TRANSACTIONS, FIELD_CHANNEL,
+                  colors={"Count": COLOR_ORANGE})
     )
     objects.append(
         terms_pie("viz-severity-pie", "Incidents by Urgency Level",
-                  DV_INCIDENTS, FIELD_SEVERITY)
+                  DV_INCIDENTS, FIELD_SEVERITY,
+                  colors={"CRITICAL": COLOR_RED, "HIGH": COLOR_ORANGE})
     )
 
     # Incident table

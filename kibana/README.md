@@ -17,12 +17,16 @@ non-technical audience.
 | **Incidents by Urgency Level** | How serious the raised incidents are |
 | **Latest Security Incidents** | A simple table of the most recent cases |
 
-Green = safe, red = flagged for review. A date picker at the top right changes
-the time period shown.
+Orange = ordinary volume, green = a clean pass, red = flagged for review. These
+are the same three signal colours the analyst console uses; the source of truth
+is `frontend/src/tokens.css` (`--color-accent`, `--color-pass`, `--color-warn`),
+mirrored as sRGB in the generator. A date picker at the top right changes the
+time period shown.
 
 ## How to import it (one time, ~1 minute)
 
-1. Open Kibana at **http://localhost:5601** and sign in (`elastic` / `meridian123`).
+1. Open Kibana at **http://localhost:5601** and sign in as `elastic`, using the
+   `ELASTIC_PASSWORD` value from your `.env`.
 2. Go to the menu (top-left ☰) → **Stack Management**.
 3. Under *Kibana*, click **Saved Objects**.
 4. Click **Import** (top right).
