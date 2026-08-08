@@ -1,0 +1,24 @@
+{
+  "scanned": "2026-08-08",
+  "target": "frontend/",
+  "framework": "Vite 8 + React 19 + TypeScript",
+  "css": "Tailwind CSS v4 via @tailwindcss/vite (no tailwind.config.js)",
+  "fonts": {
+    "source": "Google Fonts <link> in frontend/index.html",
+    "families": ["Space Grotesk 700", "IBM Plex Sans 400/600", "JetBrains Mono 400/700"],
+    "verdict": "preserved — none are on the Hallmark ban list"
+  },
+  "palette": {
+    "before": "Tailwind stock amber/green/red/slate scales retuned in @theme; paper was slate-900 navy",
+    "verdict": "replaced — custom OKLCH palette in frontend/src/tokens.css"
+  },
+  "motion": "no library (framer-motion / gsap / motion / lenis all absent) — motion-cut project",
+  "icons": "lucide-react only — single library, kept",
+  "charts": "recharts 3.9",
+  "spacing": "Tailwind default 4pt scale",
+  "designMd": false,
+  "notes": [
+    "frontend/.vercel exists — the dashboard is deployed separately and will need a redeploy.",
+    "kibana/generate_saved_objects.py and the presentation deck were previously colour-matched to the old dashboard palette. They are outside this redesign's scope and now differ."
+  ]
+}

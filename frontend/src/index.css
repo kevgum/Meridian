@@ -1,25 +1,395 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · nav: N9 edge-aligned · footer: Ft2 inline single line
+ * theme: custom · vibe: "instrument-panel clarity, warm signal, bank-grade"
+ * paper: oklch(99% 0.006 75) · accent: oklch(65.3% 0.167 51)
+ * display: Space Grotesk 700 · body: IBM Plex Sans · outlier: JetBrains Mono (one role: machine-emitted values)
+ * axes: light / geometric-sans / warm · enrichment: none (typography only) · studied: no · context: explicit
+ * pre-emit critique: P5 H5 E4 S5 R4 V5
+ * contrast: pass (40–41) · slop: pass (42–45) · honest: pass (46) · chrome: pass (47)
+ * tokens: pass (48) · responsive: pass (49) · icons: pass (30) · mobile: pass (34, 49, 50–57)
+ */
+
 @import "tailwindcss";
+@import "./tokens.css";
+
+/* ---------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
+/* `clip` rather than `hidden`: it stops horizontal scroll without creating a
+   scroll container, so position:sticky on the top bar keeps working. */
+html,
+body {
+  overflow-x: clip;
+}
 
 body {
-  background-color: #0f172a;
-  color: #f1f5f9;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
   margin: 0;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
   min-height: 100vh;
 }
 
-/* Thin custom scrollbar for the transaction feed panel */
+/* ---------------------------------------------------------------------------
+   Type roles
+   -------------------------------------------------------------------------- */
+
+/* Panel titles and the wordmark. The display face never appears at a body
+   weight, and the body face never appears at 700 — the two registers stay
+   distinguishable at 11px. */
+.u-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* The structural label that heads every pane. Tracked wide because 11px caps
+   need the air to stay legible. */
+.u-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-micro);
+  line-height: 1.2;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+
+/* The quieter sibling of .u-label, for sub-groupings inside a pane. */
+.u-label-muted {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: var(--text-micro);
+  line-height: 1.2;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Any figure that is compared against another figure aligns on the digit. */
+.font-mono,
+.u-figure {
+  font-variant-numeric: tabular-nums;
+}
+
+.u-figure {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Long compound identifiers (CUST-18656, MERIDIAN SENTINEL) must break inside
+   the word rather than push the layout past the viewport on a phone. */
+h1,
+h2,
+.u-figure,
+.u-display {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Panes — the containment layer
+   ---------------------------------------------------------------------------
+   The old dashboard nested bordered cards inside bordered panels. Here a pane
+   is a surface plus a hairline; anything inside it is separated by a rule or a
+   wash, never by a second border. One containment layer, not two.
+   -------------------------------------------------------------------------- */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: var(--color-paper);
+}
+
+.pane--rail {
+  background-color: var(--color-paper-2);
+}
+
+.pane__head {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+/* A well is a recessed group inside a pane: a lightness step, no border. */
+.well {
+  background-color: var(--color-paper-2);
+  border-radius: var(--radius-sm);
+}
+
+.pane--rail .well {
+  background-color: var(--color-paper-3);
+}
+
+/* Notes carry a semantic register. The tint is the signal; the hairline just
+   keeps the edge from dissolving into the paper. */
+.note {
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.note--accent {
+  background-color: var(--color-accent-wash);
+  border-color: var(--color-accent-edge);
+}
+
+.note--warn {
+  background-color: var(--color-warn-wash);
+  border-color: var(--color-warn-edge);
+}
+
+.note--pass {
+  background-color: var(--color-pass-wash);
+  border-color: var(--color-pass-edge);
+}
+
+/* ---------------------------------------------------------------------------
+   Controls — eight states each
+   -------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap; /* a clickable label never reads on two lines */
+  cursor: pointer;
+  transition:
+    background-color var(--dur-short) var(--ease-out),
+    border-color var(--dur-short) var(--ease-out),
+    color var(--dur-short) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
+}
+
+/* Focus is never animated — a keyboard user needs the ring on frame one. */
+.btn:focus-visible,
+.chip:focus-visible,
+.row-focus:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn--primary {
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}
+
+.btn--secondary {
+  background-color: var(--color-paper);
+  border-color: var(--color-control-edge);
+  color: var(--color-ink);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background-color: var(--color-paper-2);
+  border-color: var(--color-ink-2);
+}
+
+.btn--quiet {
+  background-color: transparent;
+  border-color: var(--color-control-edge);
+  color: var(--color-ink-2);
+}
+
+.btn--quiet:hover:not(:disabled) {
+  background-color: var(--color-paper-2);
+  color: var(--color-ink);
+}
+
+.btn--settled {
+  background-color: var(--color-pass-wash);
+  border-color: var(--color-pass-edge);
+  color: var(--color-pass-strong);
+  cursor: default;
+}
+
+/* Filter chips. `nowrap` again — "MONITOR" must not break across two lines
+   when the rail narrows. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--color-control-edge);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-paper);
+  color: var(--color-ink-2);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    border-color var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
+}
+
+.chip:hover {
+  background-color: var(--color-paper-2);
+  color: var(--color-ink);
+}
+
+.chip:active {
+  transform: translateY(1px);
+}
+
+.chip[aria-pressed="true"] {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Rows in the transaction feed are focusable list items, so they need the same
+   ring discipline as a button. */
+.row-focus {
+  outline: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Meters
+   ---------------------------------------------------------------------------
+   Scores are bars. Bars scale on the X axis rather than animating width, so
+   nothing triggers layout on a live-polling dashboard.
+   -------------------------------------------------------------------------- */
+
+.meter {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-paper-3);
+  border-radius: var(--radius-pill);
+}
+
+.meter__fill {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  border-radius: var(--radius-pill);
+  transition: transform var(--dur-long) var(--ease-out);
+}
+
+/* ---------------------------------------------------------------------------
+   Motion — three primitives, all reduced-motion aware
+   -------------------------------------------------------------------------- */
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.anim-drawer {
+  animation: overlay-in var(--dur-long) var(--ease-out) both;
+}
+
+.anim-dialog {
+  animation: dialog-in var(--dur-long) var(--ease-out) both;
+}
+
+.anim-backdrop {
+  animation: backdrop-in var(--dur-long) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 150ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 150ms !important;
+  }
+
+  .anim-drawer,
+  .anim-dialog {
+    animation-name: backdrop-in;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Scrollbars — thin, warm, and only where a pane genuinely overflows
+   -------------------------------------------------------------------------- */
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-rule) transparent;
+}
+
 .scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
+  height: 6px;
 }
+
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: transparent;
 }
+
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 2px;
+  background: var(--color-rule);
+  border-radius: var(--radius-pill);
+}
+
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background: var(--color-muted);
 }

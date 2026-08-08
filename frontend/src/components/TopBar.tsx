@@ -1,4 +1,5 @@
-import { Shield, Activity, AlertTriangle, TrendingDown, User, Wifi, WifiOff } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ShieldCheck, Wifi, WifiOff } from 'lucide-react';
 import type { KPIStats } from '../types';
 
 interface Props {
@@ -6,115 +7,93 @@ interface Props {
   isLive: boolean;
 }
 
-interface KPITileProps {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: React.ReactNode;
-  highlight?: boolean;
-  tooltip?: string;
+/**
+ * The console clock. Rendered here rather than passed in, because it is the one
+ * value on the bar that has to keep moving on its own.
+ */
+function useConsoleClock(): string {
+  const format = () =>
+    new Date().toLocaleTimeString('en-AU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZoneName: 'short',
+    });
+
+  const [now, setNow] = useState(format);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(format()), 1_000);
+    return () => clearInterval(id);
+  }, []);
+
+  return now;
 }
 
-function KPITile({ label, value, sub, icon, highlight, tooltip }: KPITileProps) {
-  return (
-    <div
-      title={tooltip}
-      className={`flex items-center gap-3 px-5 py-3 rounded-lg border ${
-      highlight
-        ? 'bg-red-950/40 border-red-700/50'
-        : 'bg-slate-800 border-slate-700'
-    }`}>
-      <div className={`p-2 rounded-md ${highlight ? 'text-red-400' : 'text-blue-400'}`}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-xs text-slate-400 uppercase tracking-wider font-medium">{label}</p>
-        <p className={`text-xl font-bold leading-tight ${highlight ? 'text-red-400' : 'text-slate-100'}`}>
-          {value}
-        </p>
-        {sub && <p className="text-xs text-slate-500">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
+/**
+ * N9 edge-aligned bar: identity hard-left, session state hard-right, nothing
+ * competing in the middle. The KPI figures that used to crowd this row now live
+ * in their own rail directly beneath it.
+ */
 export default function TopBar({ stats, isLive }: Props) {
-  const now = new Date().toLocaleTimeString('en-AU', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-    timeZoneName: 'short',
-  });
+  const now = useConsoleClock();
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 bg-slate-900 border-b border-slate-700 gap-4 shrink-0">
-      {/* Logo */}
-      <div className="flex items-center gap-2 shrink-0">
-        <Shield className="text-blue-500" size={22} />
-        <div>
-          <p className="text-sm font-bold text-slate-100 tracking-tight leading-none">
-            MERIDIAN SENTINEL
+    <header
+      className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-rule bg-paper px-4 sm:px-6"
+      style={{ height: 'var(--bar-height)' }}
+    >
+      {/* Identity */}
+      <div className="flex min-w-0 items-center gap-2">
+        <ShieldCheck size={18} className="shrink-0 text-accent" aria-hidden="true" />
+        <div className="min-w-0 leading-none">
+          <p className="u-display truncate text-sm leading-none text-ink">Meridian Sentinel</p>
+          <p className="mt-1 hidden text-micro leading-none text-muted sm:block">
+            Fraud monitoring console · v1.0.0
           </p>
-          <p className="text-xs text-slate-500 leading-none mt-0.5">v3.2 — Fraud Monitoring Dashboard</p>
         </div>
       </div>
 
-      {/* KPI tiles */}
-      <div className="flex items-center gap-3 flex-1 justify-center flex-wrap">
-        <KPITile
-          label="Payments Checked Today"
-          value={stats.transactionsToday.toLocaleString()}
-          icon={<Activity size={16} />}
-          tooltip="Total payments the system reviewed today"
-        />
-        <KPITile
-          label="Correct Decisions"
-          value={`${stats.detectionRate}%`}
-          sub="overall accuracy"
-          icon={<TrendingDown size={16} />}
-          tooltip="How often the system's decision (flag or allow) is correct overall"
-        />
-        <KPITile
-          label="False Alarms"
-          value={`${stats.fpr}%`}
-          sub="normal flagged by mistake"
-          icon={<TrendingDown size={16} />}
-          tooltip="How often a normal payment is wrongly flagged as suspicious"
-        />
-        <KPITile
-          label="Cases to Review"
-          value={String(stats.activeAlerts)}
-          icon={<AlertTriangle size={16} />}
-          highlight
-          tooltip="Flagged cases waiting for a human analyst to check"
-        />
-      </div>
-
-      {/* LIVE / DEMO indicator + analyst */}
-      <div className="flex items-center gap-3 shrink-0">
-        <div
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
+      {/* Session state */}
+      <div className="flex shrink-0 items-center gap-4">
+        <span
+          className={`inline-flex items-center gap-2 rounded-pill border px-2 py-1 text-micro font-semibold leading-none whitespace-nowrap ${
             isLive
-              ? 'bg-green-900/40 border-green-600/50 text-green-400'
-              : 'bg-slate-700/60 border-slate-600/50 text-slate-400'
+              ? 'border-pass-edge bg-pass-wash text-pass-strong'
+              : 'border-rule bg-paper-2 text-muted'
           }`}
-          aria-label={isLive ? 'Connected to live Elasticsearch' : 'Demo mode — using mock data'}
-          title={isLive ? 'Connected to live Elasticsearch' : 'Demo mode — mock data'}
+          title={
+            isLive
+              ? 'Connected to live Elasticsearch'
+              : 'Demo mode — reading bundled sample data'
+          }
         >
-          {isLive ? <Wifi size={11} aria-hidden="true" /> : <WifiOff size={11} aria-hidden="true" />}
-          {isLive ? 'LIVE' : 'DEMO'}
-        </div>
+          {isLive ? (
+            <Wifi size={11} aria-hidden="true" />
+          ) : (
+            <WifiOff size={11} aria-hidden="true" />
+          )}
+          {isLive ? 'Live' : 'Demo'}
+        </span>
 
-        <div className="text-right">
-          <p className="text-xs text-slate-400 leading-none">Analyst</p>
-          <p className="text-sm font-semibold text-slate-100 leading-tight">
-            {stats.analystName}
+        {/* Below 640px the bar carries identity and connection state only —
+            there is not room for the analyst and the clock without the
+            wordmark truncating to nothing. */}
+        <div className="hidden items-center gap-4 sm:flex">
+          <div className="text-right leading-none">
+            <p className="u-label-muted">Analyst on duty</p>
+            <p className="mt-1 text-xs font-semibold leading-none text-ink">
+              {stats.analystName}
+            </p>
+          </div>
+
+          <p
+            className="font-mono text-xs leading-none whitespace-nowrap text-muted"
+            aria-label={`Console time ${now}`}
+          >
+            {now}
           </p>
-          <p className="text-xs text-slate-500 leading-none mt-0.5 font-mono">{now}</p>
-        </div>
-        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center" aria-hidden="true">
-          <User size={14} className="text-white" />
         </div>
       </div>
     </header>

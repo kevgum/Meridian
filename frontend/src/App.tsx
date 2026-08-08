@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
+import { ShieldCheck } from 'lucide-react';
 import './index.css';
 import TopBar from './components/TopBar';
+import StatRail from './components/StatRail';
 import TransactionFeed from './components/TransactionFeed';
 import DetectionPanel from './components/DetectionPanel';
 import AlertQueue from './components/AlertQueue';
@@ -12,8 +14,7 @@ import Toast, { type ToastMessage } from './components/Toast';
 import { useElasticPolling } from './hooks/useElasticPolling';
 import { useIdleTimer } from './hooks/useIdleTimer';
 import { useA11yAnnouncer } from './hooks/useA11yAnnouncer';
-import { CUST18656_SIEM_RESULT, HISTORY_EVENTS } from './data/mockData';
-import { KPI_STATS } from './data/mockData';
+import { CUST18656_SIEM_RESULT, HISTORY_EVENTS, KPI_STATS } from './data/mockData';
 
 type AppState = 'active' | 'warn' | 'expired';
 
@@ -25,7 +26,6 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Idle timer callbacks
   const handleWarn = useCallback(() => setAppState('warn'), []);
   const handleLogout = useCallback(() => setAppState('expired'), []);
   const handleReset = useCallback(() => {
@@ -38,44 +38,57 @@ export default function App() {
     onReset: handleReset,
   });
 
-  // Toast helpers
-  const addToast = useCallback((t: Omit<ToastMessage, 'id'>) => {
-    const id = crypto.randomUUID();
-    setToasts((prev) => [...prev, { ...t, id }]);
-    announce(t.message);
-  }, [announce]);
+  const addToast = useCallback(
+    (t: Omit<ToastMessage, 'id'>) => {
+      const id = crypto.randomUUID();
+      setToasts((prev) => [...prev, { ...t, id }]);
+      announce(t.message);
+    },
+    [announce],
+  );
 
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Session expired screen
   if (appState === 'expired') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
-        <div className="text-center space-y-4 p-8 bg-slate-800 border border-slate-700 rounded-xl max-w-sm">
-          <p className="text-2xl font-bold text-slate-100">Session Expired</p>
-          <p className="text-sm text-slate-400">
-            Your session was terminated after 15 minutes of inactivity to comply
-            with PCI DSS Req 8.2.8.
+      <main className="flex min-h-screen items-center justify-center bg-paper-2 p-4">
+        <div className="w-full max-w-sm rounded-md border border-rule bg-paper p-6 shadow-[var(--shadow-whisper)]">
+          <ShieldCheck size={20} className="text-accent" aria-hidden="true" />
+          <h1 className="u-display mt-3 text-lg text-ink">Session ended</h1>
+          <p className="mt-2 text-xs leading-relaxed text-ink-2">
+            You were signed out after 15 minutes of inactivity, per PCI DSS Req 8.2.8.
+            Nothing was lost — the case is still open in the queue.
           </p>
           <button
-            onClick={() => { setAppState('active'); resetIdle(); }}
-            className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            type="button"
+            onClick={() => {
+              setAppState('active');
+              resetIdle();
+            }}
+            className="btn btn--primary mt-5 w-full"
           >
-            Log In Again
+            Sign back in
           </button>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
     <>
-      <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100">
+      <div className="flex min-h-screen flex-col bg-paper text-ink">
         <TopBar stats={KPI_STATS} isLive={isLive} />
+        <StatRail stats={KPI_STATS} />
 
-        <main id="main-content" className="flex flex-1 gap-3 p-3 min-h-0 overflow-hidden">
+        {/* The workbench: feed on the left rail, the case in the middle, the
+            queue and its actions on the right rail. Column widths are uneven
+            on purpose — the case detail is what an analyst actually reads. */}
+        <main
+          id="main-content"
+          className="flex min-h-0 flex-1 flex-col lg:flex-row"
+        >
           <TransactionFeed transactions={transactions} />
           <DetectionPanel
             siemResult={CUST18656_SIEM_RESULT}
@@ -89,23 +102,34 @@ export default function App() {
           />
         </main>
 
-        <div className="flex gap-3 px-3 pb-3 shrink-0" style={{ height: 240 }}>
+        {/* Context strip — history and standing obligations, below the work. */}
+        <div className="flex shrink-0 flex-col lg:h-56 lg:flex-row">
           <HybridChart events={HISTORY_EVENTS} />
           <ComplianceBadges />
         </div>
+
+        {/* Ft2 — one inline line that closes the page. */}
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-rule bg-paper-2 px-4 py-3 text-micro text-muted sm:px-6">
+          <p>
+            <span className="u-display text-ink">Meridian Sentinel</span> — hybrid fraud
+            detection for Meridian Financial Services
+          </p>
+          <p className="font-mono">
+            threat = behaviour × 0.60 + rules × 0.40 · flag at 0.70 · v1.0.0-prototype
+          </p>
+        </footer>
       </div>
 
-      {/* Overlays */}
       {drawerOpen && (
-        <InvestigateDrawer
-          incident={incident}
-          onClose={() => setDrawerOpen(false)}
-        />
+        <InvestigateDrawer incident={incident} onClose={() => setDrawerOpen(false)} />
       )}
 
       {appState === 'warn' && (
         <SessionWarningModal
-          onStayLoggedIn={() => { setAppState('active'); resetIdle(); }}
+          onStayLoggedIn={() => {
+            setAppState('active');
+            resetIdle();
+          }}
           onLogout={() => setAppState('expired')}
         />
       )}

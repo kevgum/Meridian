@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -6,9 +7,8 @@ import {
   CartesianGrid,
   Tooltip,
   ReferenceLine,
-  ResponsiveContainer,
-  Legend,
   ReferenceDot,
+  ResponsiveContainer,
 } from 'recharts';
 import type { HistoryEvent } from '../types';
 
@@ -17,12 +17,44 @@ interface Props {
 }
 
 interface TooltipPayload {
-  color: string;
-  name: string;
+  dataKey: string;
   value: number;
 }
 
-function CustomTooltip({
+/** The token names the chart draws from. Nothing here is a literal colour. */
+const CHART_TOKENS = [
+  '--color-chart-hybrid',
+  '--color-chart-lstm',
+  '--color-chart-threshold',
+  '--color-chart-grid',
+  '--color-chart-axis',
+  '--color-paper',
+] as const;
+
+type ChartToken = (typeof CHART_TOKENS)[number];
+
+/**
+ * Resolves the chart's design tokens to concrete values.
+ *
+ * Recharts writes colours as SVG presentation attributes, which do not resolve
+ * `var()`. Reading the computed custom properties once keeps the chart on the
+ * same palette as the rest of the console without hard-coding a single value.
+ */
+function useChartTokens(): Record<ChartToken, string> | null {
+  const [tokens, setTokens] = useState<Record<ChartToken, string> | null>(null);
+
+  useEffect(() => {
+    const styles = getComputedStyle(document.documentElement);
+    const resolved = Object.fromEntries(
+      CHART_TOKENS.map((name) => [name, styles.getPropertyValue(name).trim()]),
+    ) as Record<ChartToken, string>;
+    setTokens(resolved);
+  }, []);
+
+  return tokens;
+}
+
+function ChartTooltip({
   active,
   payload,
   label,
@@ -33,106 +65,173 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
 
+  const read = (key: string) => payload.find((p) => p.dataKey === key)?.value;
+  const hybrid = read('hybrid');
+  const lstm = read('lstm');
+
   return (
-    <div className="bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-xs shadow-xl">
-      <p className="text-slate-400 mb-1.5">Payment #{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }} className="font-mono">
-          {p.name === 'lstm' ? 'AI behaviour' : 'Overall risk'}: {p.value.toFixed(2)}
-        </p>
-      ))}
+    <div className="rounded-sm border border-rule bg-paper px-3 py-2 shadow-[var(--shadow-overlay)]">
+      <p className="u-label-muted">Payment {label}</p>
+      <dl className="mt-2 space-y-1 text-micro">
+        {hybrid !== undefined && (
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-ink-2">Overall risk</dt>
+            <dd className="font-mono font-bold text-accent-text">{hybrid.toFixed(2)}</dd>
+          </div>
+        )}
+        {lstm !== undefined && (
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-ink-2">Behaviour score</dt>
+            <dd className="font-mono font-bold text-ink">{lstm.toFixed(2)}</dd>
+          </div>
+        )}
+      </dl>
       {label === 30 && (
-        <p className="text-amber-400 mt-1 font-semibold">Customer CUST-18656 — flagged by the AI</p>
+        <p className="mt-2 border-t border-rule-2 pt-2 text-micro font-semibold text-accent-text">
+          CUST-18656 — raised by the model
+        </p>
       )}
     </div>
   );
 }
 
+/**
+ * Thirty payments of history against the flag line.
+ *
+ * The blended score is the headline series and wears the accent; the behaviour
+ * score is context and stays recessive ink. The two are also separated by dash
+ * pattern, so the pair survives greyscale printing and colour-vision deficiency
+ * — the validated colour distance carries the reading, the dashes back it up.
+ */
 export default function HybridChart({ events }: Props) {
-  // Mark CUST-18656 (step 30) for the annotation dot
-  const cust18656 = events.find((e) => e.step === 30);
+  const t = useChartTokens();
+  const flagged = events.find((e) => e.step === 30);
 
   return (
-    <div className="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col min-w-0">
-      <div className="mb-3 shrink-0">
-        <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          Risk Score Over the Last 30 Payments
-        </p>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Any payment above the red line is flagged for a human to review.
-        </p>
+    <section
+      aria-label="Risk score history"
+      className="pane min-w-0 flex-1 border-t border-rule"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 px-5 pt-4 sm:px-6">
+        <div>
+          <p className="u-label">Risk over the last 30 payments</p>
+          <p className="mt-1 text-micro text-muted">
+            Anything above the flag line goes to a human.
+          </p>
+        </div>
+
+        {/* Legend — always present for two series, so identity is never colour
+            alone. Each key repeats its series' dash pattern. */}
+        <ul className="flex flex-wrap items-center gap-x-5 gap-y-1">
+          <li className="flex items-center gap-2 text-micro text-ink-2">
+            <span className="h-0.5 w-5 shrink-0 rounded-pill bg-accent" aria-hidden="true" />
+            Overall risk
+          </li>
+          <li className="flex items-center gap-2 text-micro text-ink-2">
+            <span
+              className="h-0.5 w-5 shrink-0 bg-[repeating-linear-gradient(to_right,var(--color-ink-2)_0_6px,transparent_6px_10px)]"
+              aria-hidden="true"
+            />
+            Behaviour score
+          </li>
+          <li className="flex items-center gap-2 text-micro text-ink-2">
+            <span
+              className="h-0.5 w-5 shrink-0 bg-[repeating-linear-gradient(to_right,var(--color-warn)_0_3px,transparent_3px_6px)]"
+              aria-hidden="true"
+            />
+            Flag line 0.70
+          </li>
+        </ul>
       </div>
 
-      <div className="flex-1 min-h-0" style={{ minHeight: 160 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={events} margin={{ top: 8, right: 16, left: -16, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis
-              dataKey="step"
-              tick={{ fill: '#64748b', fontSize: 10 }}
-              tickLine={false}
-              axisLine={{ stroke: '#475569' }}
-              label={{ value: 'Payment', position: 'insideBottomRight', fill: '#64748b', fontSize: 10, offset: -4 }}
-            />
-            <YAxis
-              domain={[0, 1]}
-              tick={{ fill: '#64748b', fontSize: 10 }}
-              tickLine={false}
-              axisLine={{ stroke: '#475569' }}
-              tickFormatter={(v: number) => v.toFixed(1)}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ fontSize: 11, color: '#94a3b8', paddingTop: 8 }}
-              formatter={(value: string) =>
-                value === 'lstm' ? 'AI behaviour score' : 'Overall risk score'
-              }
-            />
-
-            {/* Trigger threshold reference line */}
-            <ReferenceLine
-              y={0.70}
-              stroke="#ef4444"
-              strokeDasharray="5 3"
-              strokeWidth={1.5}
-              label={{ value: 'Flag line', position: 'insideTopLeft', fill: '#ef4444', fontSize: 10 }}
-            />
-
-            {/* LSTM score line */}
-            <Line
-              type="monotone"
-              dataKey="lstm"
-              stroke="#3b82f6"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: '#3b82f6' }}
-            />
-
-            {/* Hybrid score line */}
-            <Line
-              type="monotone"
-              dataKey="hybrid"
-              stroke="#f59e0b"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: '#f59e0b' }}
-            />
-
-            {/* CUST-18656 annotation dot (step 30) */}
-            {cust18656 && (
-              <ReferenceDot
-                x={30}
-                y={cust18656.lstm}
-                r={5}
-                fill="#f59e0b"
-                stroke="#fde68a"
-                strokeWidth={2}
-                label={{ value: '18656', position: 'top', fill: '#fde68a', fontSize: 9 }}
+      <div className="min-h-0 flex-1 px-2 pb-3 sm:px-3" style={{ minHeight: 168 }}>
+        {t && (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={events} margin={{ top: 12, right: 20, left: -20, bottom: 4 }}>
+              <CartesianGrid
+                stroke={t['--color-chart-grid']}
+                strokeDasharray="2 4"
+                vertical={false}
               />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
+              <XAxis
+                dataKey="step"
+                tick={{ fill: t['--color-chart-axis'], fontSize: 10 }}
+                tickLine={false}
+                axisLine={{ stroke: t['--color-chart-grid'] }}
+              />
+              <YAxis
+                domain={[0, 1]}
+                tick={{ fill: t['--color-chart-axis'], fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v: number) => v.toFixed(1)}
+              />
+              <Tooltip
+                content={<ChartTooltip />}
+                cursor={{ stroke: t['--color-chart-axis'], strokeDasharray: '3 3' }}
+              />
+
+              <ReferenceLine
+                y={0.7}
+                stroke={t['--color-chart-threshold']}
+                strokeDasharray="4 4"
+                strokeWidth={1.5}
+              />
+
+              {/* Context series — recessive ink, dashed. */}
+              <Line
+                type="monotone"
+                dataKey="lstm"
+                stroke={t['--color-chart-lstm']}
+                strokeWidth={1.5}
+                strokeDasharray="6 4"
+                dot={false}
+                activeDot={{
+                  r: 4,
+                  fill: t['--color-chart-lstm'],
+                  stroke: t['--color-paper'],
+                  strokeWidth: 2,
+                }}
+                isAnimationActive={false}
+              />
+
+              {/* Headline series — accent, solid, drawn last so it sits on top. */}
+              <Line
+                type="monotone"
+                dataKey="hybrid"
+                stroke={t['--color-chart-hybrid']}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{
+                  r: 4,
+                  fill: t['--color-chart-hybrid'],
+                  stroke: t['--color-paper'],
+                  strokeWidth: 2,
+                }}
+                isAnimationActive={false}
+              />
+
+              {/* The one point worth naming outright. */}
+              {flagged && (
+                <ReferenceDot
+                  x={30}
+                  y={flagged.lstm}
+                  r={4.5}
+                  fill={t['--color-chart-hybrid']}
+                  stroke={t['--color-paper']}
+                  strokeWidth={2}
+                  label={{
+                    value: '18656',
+                    position: 'top',
+                    fill: t['--color-chart-hybrid'],
+                    fontSize: 10,
+                  }}
+                />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
-    </div>
+    </section>
   );
 }

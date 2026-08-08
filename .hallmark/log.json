@@ -1,0 +1,17 @@
+[
+  {
+    "date": "2026-08-08",
+    "verb": "redesign",
+    "scope": "app",
+    "genre": "modern-minimal",
+    "macrostructure": "Workbench",
+    "nav": "N9 edge-aligned minimal",
+    "footer": "Ft2 inline single line",
+    "theme": "custom",
+    "theme_axes": "light / geometric-sans / warm",
+    "vibe": "instrument-panel clarity, warm signal, bank-grade",
+    "enrichment": "none",
+    "motion": "number tick · CTA hover-lift + press · overlay enter",
+    "brief": "Meridian Sentinel — SOC fraud console on white paper, orange primary, red warnings, green pass"
+  }
+]

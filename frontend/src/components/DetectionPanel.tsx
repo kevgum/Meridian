@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle, AlertTriangle, Brain, Zap } from 'lucide-react';
+import { Check, X, Brain, Zap, AlertTriangle } from 'lucide-react';
 import type { SIEMResult, Incident } from '../types';
 
 interface Props {
@@ -8,133 +8,154 @@ interface Props {
 }
 
 const RULE_EVIDENCE: Record<string, string> = {
-  RULE_001: '$256.74 < $10,000 threshold',
-  RULE_002: 'All transactions in Darwin, NT — velocity 0 km/h',
-  RULE_003: 'Txn time 14:00 ACST — within 08:00–22:00 window',
-  RULE_004: 'M5732 not in watchlist/merchants.json',
+  RULE_001: '$256.74 — under the $10,000 threshold',
+  RULE_002: 'All six transactions in Darwin, NT — velocity 0 km/h',
+  RULE_003: '14:00 ACST — inside the 08:00–22:00 window',
+  RULE_004: 'M5732 is not in watchlist/merchants.json',
 };
 
-const SEVERITY_COLOUR: Record<string, string> = {
-  HIGH: 'text-red-400',
-  MEDIUM: 'text-amber-400',
-};
-
-function SIEMRulesColumn({ siemResult }: { siemResult: SIEMResult }) {
+/**
+ * The four fixed rules, one row each.
+ *
+ * Every verdict is carried by three channels at once — icon, word and colour —
+ * so a reader who cannot separate red from green still reads the row correctly.
+ */
+function SecurityRules({ siemResult }: { siemResult: SIEMResult }) {
   return (
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 mb-3" title="Fixed security rules that check each payment — like amount limits and location checks">
-        <Zap size={14} className="text-blue-400" />
-        <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          Security Rules Check
-        </p>
-        <span className="text-[10px] text-slate-500 normal-case">(SIEM)</span>
+    <div className="min-w-0 flex-1">
+      <div
+        className="flex items-center gap-2"
+        title="Fixed rules checked against every payment — amount limits, location jumps, timing and known-bad merchants"
+      >
+        <Zap size={13} className="shrink-0 text-accent-text" aria-hidden="true" />
+        <p className="u-label">Security rules</p>
+        <span className="font-mono text-micro text-muted">SIEM</span>
       </div>
 
-      <div className="space-y-2">
+      <ul className="mt-3">
         {siemResult.rules.map((rule) => (
-          <div
+          <li
             key={rule.ruleId}
-            className="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-700/50 border border-slate-600/50"
+            className="flex items-start gap-3 border-b border-rule-2 py-3 first:border-t first:border-rule-2"
           >
             {rule.triggered ? (
-              <XCircle size={15} className="text-red-500 shrink-0 mt-0.5" />
+              <X size={14} className="mt-0.5 shrink-0 text-warn" aria-hidden="true" />
             ) : (
-              <CheckCircle size={15} className="text-green-500 shrink-0 mt-0.5" />
+              <Check size={14} className="mt-0.5 shrink-0 text-pass" aria-hidden="true" />
             )}
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-slate-400">{rule.ruleId}</span>
-                <span className={`text-xs font-semibold ${SEVERITY_COLOUR[rule.severity]}`}>
-                  {rule.severity}
-                </span>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-mono text-micro text-muted">{rule.ruleId}</span>
+                <span className="text-xs font-semibold text-ink">{rule.name}</span>
               </div>
-              <p className="text-xs text-slate-200 font-medium mt-0.5">{rule.name}</p>
-              <p className="text-xs text-slate-400 mt-0.5 leading-snug">
+              <p className="mt-1 text-micro leading-snug text-ink-2">
                 {RULE_EVIDENCE[rule.ruleId]}
               </p>
             </div>
+
             <span
-              className={`ml-auto text-xs font-bold shrink-0 ${
-                rule.triggered ? 'text-red-400' : 'text-green-400'
+              className={`shrink-0 text-micro font-semibold whitespace-nowrap ${
+                rule.triggered ? 'text-warn' : 'text-pass'
               }`}
-              title={rule.triggered ? 'This rule was broken' : 'This check passed — nothing wrong'}
+              title={
+                rule.triggered
+                  ? 'This rule was broken'
+                  : 'This check passed — nothing unusual'
+              }
             >
               {rule.triggered ? 'PROBLEM' : 'OK'}
             </span>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
 
-      {/* SIEM score summary */}
-      <div className="mt-3 p-2.5 rounded-lg bg-green-900/20 border border-green-700/30">
-        <p className="text-xs text-green-400 font-semibold">
-          Security rules: {siemResult.triggeredCount} of 4 broken
-        </p>
-        <p className="text-xs text-green-300/70 mt-0.5">All security checks passed — nothing unusual here</p>
-      </div>
+      <p className="note note--pass mt-4 px-3 py-2 text-micro text-pass-strong">
+        <span className="font-semibold">
+          <span className="font-mono">{siemResult.triggeredCount}</span> of 4 rules broken.
+        </span>{' '}
+        Every fixed check passed — nothing here looks wrong on the rules alone.
+      </p>
     </div>
   );
 }
 
-function LSTMColumn({ lstmScore }: { lstmScore: number }) {
+/**
+ * The behavioural side of the case: what the model thought, and why.
+ *
+ * The threshold marker is drawn on the meter itself so the reading is spatial —
+ * the analyst sees how far short of, or past, the alert line the score sits.
+ */
+function BehaviourCheck({ lstmScore }: { lstmScore: number }) {
   const pct = Math.round(lstmScore * 100);
-  const threshold = 92; // decision threshold in percent
+  const thresholdPct = 92;
 
-  const behavioural = [
+  const signals = [
     'Rapid multi-merchant spend pattern',
-    'Electronics + restaurant alternating MCC',
-    '6 transactions across 75 minutes',
-    'Unusual spending velocity vs. customer baseline',
+    'Electronics and restaurant MCCs alternating',
+    'Six transactions across 75 minutes',
+    'Spending velocity well above this customer’s baseline',
   ];
 
   return (
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 mb-3" title="An AI trained on millions of past payments to spot behaviour that doesn't fit the customer's normal pattern">
-        <Brain size={14} className="text-blue-400" />
-        <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          AI Behaviour Check
-        </p>
-        <span className="text-[10px] text-slate-500 normal-case">(LSTM)</span>
+    <div className="min-w-0 flex-1">
+      <div
+        className="flex items-center gap-2"
+        title="A model trained on millions of past payments, looking for behaviour that does not fit this customer's normal pattern"
+      >
+        <Brain size={13} className="shrink-0 text-accent-text" aria-hidden="true" />
+        <p className="u-label">Behaviour check</p>
+        <span className="font-mono text-micro text-muted">LSTM</span>
       </div>
 
-      {/* Anomaly probability */}
-      <div className="p-3 rounded-lg bg-slate-700/50 border border-slate-600/50">
-        <p className="text-xs text-slate-400 mb-2">How unusual is this behaviour?</p>
+      <div className="well mt-3 px-4 py-3">
+        <p className="text-micro text-ink-2">How unusual is this behaviour?</p>
 
-        {/* Bar */}
-        <div className="relative h-4 bg-slate-600 rounded-full overflow-hidden mb-1">
+        <div
+          className="meter relative mt-2 h-3"
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Behaviour score ${pct} percent against an alert level of ${thresholdPct} percent`}
+        >
           <div
-            className="h-full bg-blue-500 rounded-full transition-all"
-            style={{ width: `${pct}%` }}
+            className="meter__fill bg-accent"
+            style={{ transform: `scaleX(${lstmScore})` }}
           />
-          {/* Threshold marker */}
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-red-400 opacity-80"
-            style={{ left: `${threshold}%` }}
+          <span
+            className="absolute inset-y-0 w-0.5 bg-warn"
+            style={{ left: `${thresholdPct}%` }}
+            aria-hidden="true"
           />
         </div>
 
-        <div className="flex justify-between text-xs">
-          <span className="text-blue-300 font-bold font-mono">{pct}% unusual</span>
-          <span className="text-red-400 font-mono">alert level: {threshold}%</span>
+        <div className="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1">
+          <span className="font-mono text-micro font-bold text-accent-text">
+            {pct}% unusual
+          </span>
+          <span className="font-mono text-micro text-warn">
+            alert level {thresholdPct}%
+          </span>
         </div>
       </div>
 
-      {/* Trigger path */}
-      <div className="mt-2 p-2.5 rounded-lg bg-amber-900/20 border border-amber-700/40">
-        <p className="text-xs text-amber-400 font-semibold">Why it was flagged</p>
-        <p className="text-xs text-amber-300/70 mt-0.5 leading-snug">
-          The AI was confident enough on its own — it doesn't need the security rules to agree before raising this for review.
+      <div className="note note--accent mt-3 px-3 py-2">
+        <p className="text-micro font-semibold text-accent-text">Why it was flagged</p>
+        <p className="mt-1 text-micro leading-snug text-ink-2">
+          The model was confident enough on its own. It does not wait for the fixed rules
+          to agree before raising a case for review.
         </p>
       </div>
 
-      {/* Behavioural signals */}
-      <div className="mt-2 p-2.5 rounded-lg bg-slate-700/50 border border-slate-600/50">
-        <p className="text-xs text-slate-400 font-semibold mb-1.5">What looked unusual</p>
-        <ul className="space-y-1">
-          {behavioural.map((signal) => (
-            <li key={signal} className="text-xs text-slate-300 flex items-start gap-1.5">
-              <span className="text-blue-400 mt-0.5 shrink-0">›</span>
+      <div className="mt-3">
+        <p className="u-label-muted">What looked unusual</p>
+        <ul className="mt-2 space-y-2">
+          {signals.map((signal) => (
+            <li key={signal} className="flex items-start gap-2 text-micro text-ink-2">
+              <span className="mt-0.5 shrink-0 font-mono text-accent" aria-hidden="true">
+                ›
+              </span>
               {signal}
             </li>
           ))}
@@ -144,35 +165,45 @@ function LSTMColumn({ lstmScore }: { lstmScore: number }) {
   );
 }
 
-function VerdictBanner({ incident }: { incident: Incident }) {
+/** The line the analyst reads first if they read nothing else. */
+function Verdict({ incident }: { incident: Incident }) {
   return (
-    <div className="mt-4 p-3 rounded-lg bg-amber-900/30 border border-amber-600/50">
-      <div className="flex items-center gap-2">
-        <AlertTriangle size={16} className="text-amber-400 shrink-0" />
-        <div className="flex-1">
-          <p className="text-sm font-bold text-amber-300">
-            FLAGGED FOR REVIEW · {Math.round(incident.lstmScore * 100)}% suspicious
+    <div className="note note--accent mt-5 px-4 py-3">
+      <div className="flex flex-wrap items-start gap-3">
+        <AlertTriangle size={16} className="mt-0.5 shrink-0 text-accent-text" aria-hidden="true" />
+
+        <div className="min-w-0 flex-1">
+          <p className="u-display text-sm text-ink">
+            Flagged for review — {Math.round(incident.lstmScore * 100)}% suspicious
           </p>
-          <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
-            <span className="text-xs text-slate-400" title="The final risk score, combining both checks">
-              Overall risk:{' '}
-              <span className="text-slate-200 font-mono">{incident.threatScore.toFixed(2)}</span>
-            </span>
-            <span className="text-xs text-slate-400" title="Score from the AI behaviour check">
-              AI behaviour:{' '}
-              <span className="text-blue-300 font-mono">{incident.lstmScore.toFixed(2)}</span>
-            </span>
-            <span className="text-xs text-slate-400" title="Score from the fixed security rules">
-              Security rules:{' '}
-              <span className="text-green-300 font-mono">{incident.siemScore.toFixed(2)}</span>
-            </span>
-            <span className="text-xs text-slate-400" title="The automatic action the system took">
-              Action taken:{' '}
-              <span className="text-amber-300 font-semibold">{incident.action}</span>
-            </span>
-          </div>
+
+          <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-micro text-muted">
+            <div className="flex gap-2" title="The final score, blending both checks">
+              <dt>Overall risk</dt>
+              <dd className="font-mono font-bold text-ink">
+                {incident.threatScore.toFixed(2)}
+              </dd>
+            </div>
+            <div className="flex gap-2" title="Score from the behaviour check">
+              <dt>Behaviour</dt>
+              <dd className="font-mono font-bold text-accent-text">
+                {incident.lstmScore.toFixed(2)}
+              </dd>
+            </div>
+            <div className="flex gap-2" title="Score from the fixed security rules">
+              <dt>Rules</dt>
+              <dd className="font-mono font-bold text-pass">
+                {incident.siemScore.toFixed(2)}
+              </dd>
+            </div>
+            <div className="flex gap-2" title="The automatic action the system took">
+              <dt>Action taken</dt>
+              <dd className="font-mono font-bold text-ink">{incident.action}</dd>
+            </div>
+          </dl>
         </div>
-        <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-600/40 text-amber-200 border border-amber-500/40 shrink-0">
+
+        <span className="shrink-0 rounded-xs border border-warn-edge bg-warn-wash px-2 py-1 text-micro font-bold whitespace-nowrap text-warn">
           {incident.severity}
         </span>
       </div>
@@ -182,27 +213,31 @@ function VerdictBanner({ incident }: { incident: Incident }) {
 
 export default function DetectionPanel({ siemResult, lstmScore, incident }: Props) {
   return (
-    <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg flex flex-col p-4 overflow-y-auto">
-      {/* Header */}
-      <div className="mb-4 shrink-0">
-        <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          How this case was checked — Customer CUST-18656
+    <section
+      aria-label="Detection detail"
+      className="pane min-w-0 flex-1 overflow-y-auto scrollbar-thin"
+    >
+      <div className="px-5 py-4 sm:px-6">
+        <h1 className="u-display text-base text-ink">
+          How case {incident.customerId} was checked
+        </h1>
+        <p className="mt-2 max-w-[68ch] text-xs leading-relaxed text-ink-2">
+          Two independent checks run on every payment: a set of fixed security rules, and a
+          model that has learned this customer’s normal behaviour.
         </p>
-        <p className="text-xs text-slate-500 mt-0.5">Two independent checks run on every payment: fixed security rules, and an AI that learns each customer's normal behaviour.</p>
-        <p className="text-xs text-slate-500 mt-0.5">Darwin, NT · 6 transactions · A$665.20 total</p>
-      </div>
+        <p className="mt-1 font-mono text-micro text-muted">
+          Darwin, NT · {incident.transactionCount} transactions · A$
+          {incident.totalAmount.toFixed(2)} · {incident.incidentId}
+        </p>
 
-      {/* Two-column detection grid */}
-      <div className="flex gap-4 flex-1 min-h-0">
-        <SIEMRulesColumn siemResult={siemResult} />
-        <div className="w-px bg-slate-700 shrink-0" />
-        <LSTMColumn lstmScore={lstmScore} />
-      </div>
+        <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:gap-8">
+          <SecurityRules siemResult={siemResult} />
+          <div className="hidden w-px shrink-0 self-stretch bg-rule lg:block" aria-hidden="true" />
+          <BehaviourCheck lstmScore={lstmScore} />
+        </div>
 
-      {/* Verdict banner */}
-      <div className="shrink-0">
-        <VerdictBanner incident={incident} />
+        <Verdict incident={incident} />
       </div>
-    </div>
+    </section>
   );
 }

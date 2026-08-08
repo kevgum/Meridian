@@ -1,28 +1,39 @@
-import { CreditCard, Globe, CheckCircle } from 'lucide-react';
+import { CreditCard, Globe, Check } from 'lucide-react';
 import type { Transaction } from '../types';
 
 interface Props {
   transactions: Transaction[];
 }
 
-function LSTMBar({ score }: { score: number }) {
+/**
+ * The AI risk meter on a feed row.
+ *
+ * Colour alone would not carry the reading, so the percentage is always printed
+ * beside the bar. The bar scales rather than resizing, so a live-polling feed
+ * never triggers layout.
+ */
+function RiskMeter({ score }: { score: number }) {
   const pct = Math.round(score * 100);
-  const colour =
-    score >= 0.70 ? 'bg-amber-500' : score >= 0.50 ? 'bg-yellow-500' : 'bg-green-500';
+  const tone =
+    score >= 0.7 ? 'bg-accent' : score >= 0.5 ? 'bg-accent-edge' : 'bg-pass-edge';
+
   return (
-    <div className="flex items-center gap-1.5 mt-1" role="presentation">
+    <div className="mt-2 flex items-center gap-2">
       <div
-        className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden"
+        className="meter h-1 flex-1"
         role="progressbar"
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={`AI risk score ${pct}%`}
+        aria-label={`AI risk score ${pct} percent`}
         title={`AI risk score: ${pct}% — how unusual this payment looks`}
       >
-        <div className={`h-full rounded-full ${colour}`} style={{ width: `${pct}%` }} />
+        <div
+          className={`meter__fill ${tone}`}
+          style={{ transform: `scaleX(${score})` }}
+        />
       </div>
-      <span className="text-xs text-slate-500 w-7 text-right font-mono" aria-hidden="true">
+      <span className="w-8 shrink-0 text-right font-mono text-micro text-muted" aria-hidden="true">
         {pct}%
       </span>
     </div>
@@ -30,53 +41,59 @@ function LSTMBar({ score }: { score: number }) {
 }
 
 function TransactionRow({ tx }: { tx: Transaction }) {
-  const isHighAlert = tx.isActive && tx.lstmScore >= 0.70;
-  const label = `${tx.merchantName}, ${tx.mccLabel}, $${tx.amount.toFixed(2)}, passed security rules, AI risk ${Math.round(tx.lstmScore * 100)}%${tx.isActive ? ', active investigation' : ''}`;
+  const label =
+    `${tx.merchantName}, ${tx.mccLabel}, ${tx.amount.toFixed(2)} dollars, ` +
+    `passed security rules, AI risk ${Math.round(tx.lstmScore * 100)} percent` +
+    (tx.isActive ? ', part of the open investigation' : '');
 
   return (
     <div
       role="listitem"
       tabIndex={0}
       aria-label={label}
-      className={`px-3 py-2.5 border-b transition-colors outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 ${
-        tx.isActive
-          ? isHighAlert
-            ? 'border-amber-700/60 bg-amber-950/30 hover:bg-amber-950/50'
-            : 'border-blue-700/40 bg-blue-950/20 hover:bg-blue-950/40'
-          : 'border-slate-700/50 hover:bg-slate-800/50'
+      className={`row-focus border-b border-rule-2 px-4 py-3 transition-[background-color] duration-200 ease-out ${
+        tx.isActive ? 'bg-accent-wash hover:bg-accent-wash' : 'hover:bg-paper-3'
       }`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div
-            className={`p-1 rounded shrink-0 ${tx.isActive ? 'text-amber-400' : 'text-slate-500'}`}
-            aria-hidden="true"
-          >
-            {tx.channel === 'Card' ? <CreditCard size={13} /> : <Globe size={13} />}
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {tx.channel === 'Card' ? (
+            <CreditCard
+              size={13}
+              className={`shrink-0 ${tx.isActive ? 'text-accent-text' : 'text-muted'}`}
+              aria-hidden="true"
+            />
+          ) : (
+            <Globe
+              size={13}
+              className={`shrink-0 ${tx.isActive ? 'text-accent-text' : 'text-muted'}`}
+              aria-hidden="true"
+            />
+          )}
           <div className="min-w-0">
-            <p className={`text-xs font-medium truncate ${tx.isActive ? 'text-amber-100' : 'text-slate-300'}`}>
-              {tx.merchantName}
-            </p>
-            <p className="text-xs text-slate-500 truncate">{tx.mccLabel}</p>
+            <p className="truncate text-xs font-semibold text-ink">{tx.merchantName}</p>
+            <p className="truncate text-micro text-muted">{tx.mccLabel}</p>
           </div>
         </div>
 
-        <div className="text-right shrink-0">
-          <p className={`text-xs font-semibold tabular-nums ${tx.isActive ? 'text-amber-200' : 'text-slate-200'}`}>
-            ${tx.amount.toFixed(2)}
-          </p>
-          <div className="flex items-center justify-end gap-1 mt-0.5" aria-hidden="true" title="Passed all security rules">
-            <CheckCircle size={10} className="text-green-500" />
-            <span className="text-xs text-green-500 font-medium">OK</span>
-          </div>
+        <div className="shrink-0 text-right">
+          <p className="font-mono text-xs font-semibold text-ink">${tx.amount.toFixed(2)}</p>
+          {/* Icon plus word, never colour alone — green is unreliable for
+              roughly one reader in twelve. */}
+          <span
+            className="mt-1 inline-flex items-center gap-1 text-micro font-semibold text-pass"
+            title="Passed all four security rules"
+          >
+            <Check size={10} aria-hidden="true" />
+            OK
+          </span>
         </div>
       </div>
 
-      <LSTMBar score={tx.lstmScore} />
+      <RiskMeter score={tx.lstmScore} />
 
       {tx.isActive && (
-        <p className="text-xs text-amber-500/80 font-medium mt-1 truncate" aria-hidden="true">
+        <p className="mt-2 truncate font-mono text-micro text-accent-text">
           {tx.customerId} · {tx.location}
         </p>
       )}
@@ -88,17 +105,17 @@ export default function TransactionFeed({ transactions }: Props) {
   return (
     <aside
       aria-label="Live transaction feed"
-      className="w-64 shrink-0 bg-slate-800 border border-slate-700 rounded-lg flex flex-col overflow-hidden"
+      className="pane pane--rail w-full shrink-0 border-b border-rule lg:w-68 lg:border-b-0 lg:border-r"
     >
-      <div className="px-3 py-2.5 border-b border-slate-700 shrink-0">
-        <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          Live Transaction Feed
+      <div className="pane__head px-4 py-3">
+        <p className="u-label">Transaction feed</p>
+        <p className="mt-1 text-micro text-muted">
+          Newest first · <span className="font-mono">{transactions.length}</span> in window
         </p>
-        <p className="text-xs text-slate-500 mt-0.5">Real-time · {transactions.length} transactions</p>
       </div>
 
       <div
-        className="flex-1 overflow-y-auto scrollbar-thin"
+        className="scrollbar-thin max-h-72 flex-1 overflow-y-auto lg:max-h-none"
         role="list"
         aria-label="Transactions, most recent first"
         aria-live="polite"

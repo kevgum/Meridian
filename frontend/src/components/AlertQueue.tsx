@@ -5,8 +5,8 @@ import type { Incident } from '../types';
 import type { ToastMessage } from './Toast';
 
 type SeverityFilter = 'ALL' | 'HIGH' | 'MONITOR';
-type ChannelFilter  = 'ALL' | 'Online' | 'Card' | 'Mobile';
-type TimeFilter     = 'ALL' | '<1h' | '<6h' | '<24h';
+type ChannelFilter = 'ALL' | 'Online' | 'Card' | 'Mobile';
+type TimeFilter = 'ALL' | '<1h' | '<6h' | '<24h';
 
 interface MonitorAlert {
   id: string;
@@ -17,18 +17,22 @@ interface MonitorAlert {
 }
 
 const MONITOR_ALERTS: MonitorAlert[] = [
-  { id: 'CUST-44209', channel: 'Online', ageMinutes: 140, title: 'Qantas charge',       location: 'Sydney, NSW'    },
-  { id: 'CUST-73940', channel: 'Card',   ageMinutes: 370, title: 'Electronics purchase', location: 'Melbourne, VIC' },
+  { id: 'CUST-44209', channel: 'Online', ageMinutes: 140, title: 'Qantas charge', location: 'Sydney, NSW' },
+  { id: 'CUST-73940', channel: 'Card', ageMinutes: 370, title: 'Electronics purchase', location: 'Melbourne, VIC' },
 ];
 
 const HIGH_ALERT_CHANNEL: ChannelFilter = 'Mobile';
 const HIGH_ALERT_AGE_MINUTES = 14;
 
 function timeLimit(f: TimeFilter): number {
-  if (f === '<1h')  return 60;
-  if (f === '<6h')  return 360;
+  if (f === '<1h') return 60;
+  if (f === '<6h') return 360;
   if (f === '<24h') return 1440;
   return Infinity;
+}
+
+function ageLabel(minutes: number): string {
+  return minutes < 60 ? `${minutes}m ago` : `${Math.round(minutes / 60)}h ago`;
 }
 
 interface Props {
@@ -45,30 +49,52 @@ function useSlaCountdown(initialSeconds: number) {
   }, []);
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
-  const isUrgent = remaining < 60;
-  return { display: `${mins}:${secs.toString().padStart(2, '0')}`, isUrgent, remaining };
+  return {
+    display: `${mins}:${secs.toString().padStart(2, '0')}`,
+    isUrgent: remaining < 60,
+  };
 }
 
-function chipClass(active: boolean) {
-  return `px-2 py-0.5 rounded text-[10px] font-semibold transition-colors focus:outline-none focus:ring-1 focus:ring-blue-400 ${
-    active
-      ? 'bg-blue-600 text-white'
-      : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200'
-  }`;
-}
-
-function ageLabel(minutes: number): string {
-  return minutes < 60 ? `${minutes}m ago` : `${Math.round(minutes / 60)}h ago`;
+/** One filter group. Rendered three times; the label column keeps them aligned. */
+function FilterRow<T extends string>({
+  legend,
+  options,
+  value,
+  onChange,
+}: {
+  legend: string;
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div role="group" aria-label={legend} className="flex items-center gap-2">
+      <span className="u-label-muted w-14 shrink-0">{legend}</span>
+      <div className="flex flex-wrap gap-1">
+        {options.map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            aria-pressed={value === v}
+            className="chip"
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function AlertQueue({ incident, onInvestigate, onToast }: Props) {
   const sla = useSlaCountdown(248);
-  const [confirming, setConfirming]         = useState(false);
-  const [confirmed, setConfirmed]           = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('ALL');
-  const [channelFilter, setChannelFilter]   = useState<ChannelFilter>('ALL');
-  const [timeFilter, setTimeFilter]         = useState<TimeFilter>('ALL');
-  const [escalated, setEscalated]           = useState(false);
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>('ALL');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('ALL');
+  const [escalated, setEscalated] = useState(false);
 
   function handleEscalate() {
     setEscalated(true);
@@ -82,13 +108,13 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
 
   const showHighAlert =
     (severityFilter === 'ALL' || severityFilter === 'HIGH') &&
-    (channelFilter  === 'ALL' || channelFilter  === HIGH_ALERT_CHANNEL) &&
+    (channelFilter === 'ALL' || channelFilter === HIGH_ALERT_CHANNEL) &&
     HIGH_ALERT_AGE_MINUTES <= limit;
 
   const visibleMonitor = MONITOR_ALERTS.filter(
     (a) =>
       (severityFilter === 'ALL' || severityFilter === 'MONITOR') &&
-      (channelFilter  === 'ALL' || a.channel === channelFilter) &&
+      (channelFilter === 'ALL' || a.channel === channelFilter) &&
       a.ageMinutes <= limit,
   );
 
@@ -108,11 +134,18 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
         payload,
         { timeout: 3_000 },
       );
+      // Silent success: the button itself switches to "Threat confirmed", so a
+      // toast would only restate what the analyst can already see.
       setConfirmed(true);
-      onToast({ message: `Incident ${incident.incidentId} confirmed — audit log updated`, variant: 'success' });
     } catch {
+      // The write to Elasticsearch failed. The incident is confirmed locally so
+      // the analyst can keep working, but the audit trail did NOT record it —
+      // say so plainly rather than reporting a success that did not happen.
       setConfirmed(true);
-      onToast({ message: `Incident ${incident.incidentId} confirmed (demo mode)`, variant: 'success' });
+      onToast({
+        message: `Incident ${incident.incidentId} confirmed locally — audit log NOT updated (Elasticsearch unreachable)`,
+        variant: 'error',
+      });
     } finally {
       setConfirming(false);
     }
@@ -121,211 +154,221 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
   return (
     <aside
       aria-label="Alert queue"
-      className="w-72 shrink-0 bg-slate-800 border border-slate-700 rounded-lg flex flex-col overflow-hidden"
+      className="pane pane--rail w-full shrink-0 border-t border-rule lg:w-80 lg:border-t-0 lg:border-l"
     >
-      {/* Header + filters */}
-      <div className="px-3 py-2.5 border-b border-slate-700 shrink-0 space-y-2">
+      {/* Head + filters */}
+      <div className="pane__head space-y-3 px-4 py-3">
         <div>
-          <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Alert Queue</p>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {totalVisible} active · {showHighAlert ? 1 : 0} requiring action
+          <p className="u-label">Alert queue</p>
+          {/* The one live region in this rail. Changing a filter re-announces
+              the count, which is the only thing a filter actually changes. */}
+          <p className="mt-1 text-micro text-muted" aria-live="polite" aria-atomic="true">
+            <span className="font-mono">{totalVisible}</span> active ·{' '}
+            <span className="font-mono">{showHighAlert ? 1 : 0}</span> needing a decision
           </p>
         </div>
 
-        {/* US-08 — severity filter */}
-        <div role="group" aria-label="Filter by severity" className="flex items-center gap-1.5">
-          <span className="text-[10px] text-slate-500 w-11 shrink-0">Severity</span>
-          {(['ALL', 'HIGH', 'MONITOR'] as SeverityFilter[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setSeverityFilter(v)}
-              aria-pressed={severityFilter === v}
-              className={chipClass(severityFilter === v)}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-
-        {/* US-08 — channel filter */}
-        <div role="group" aria-label="Filter by channel" className="flex items-center gap-1.5">
-          <span className="text-[10px] text-slate-500 w-11 shrink-0">Channel</span>
-          {(['ALL', 'Online', 'Card', 'Mobile'] as ChannelFilter[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setChannelFilter(v)}
-              aria-pressed={channelFilter === v}
-              className={chipClass(channelFilter === v)}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-
-        {/* US-08 — time filter */}
-        <div role="group" aria-label="Filter by time window" className="flex items-center gap-1.5">
-          <span className="text-[10px] text-slate-500 w-11 shrink-0">Time</span>
-          {(['ALL', '<1h', '<6h', '<24h'] as TimeFilter[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setTimeFilter(v)}
-              aria-pressed={timeFilter === v}
-              className={chipClass(timeFilter === v)}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
+        <FilterRow
+          legend="Severity"
+          options={['ALL', 'HIGH', 'MONITOR'] as const}
+          value={severityFilter}
+          onChange={setSeverityFilter}
+        />
+        <FilterRow
+          legend="Channel"
+          options={['ALL', 'Online', 'Card', 'Mobile'] as const}
+          value={channelFilter}
+          onChange={setChannelFilter}
+        />
+        <FilterRow
+          legend="Time"
+          options={['ALL', '<1h', '<6h', '<24h'] as const}
+          value={timeFilter}
+          onChange={setTimeFilter}
+        />
       </div>
 
-      {/* MONITOR alerts — filtered */}
-      {visibleMonitor.map((a) => (
-        <div key={a.id} className="px-3 py-2 border-b border-slate-700/50 opacity-50">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400">{a.id}</span>
-            <span className="text-xs text-blue-400 font-semibold">MONITOR</span>
-          </div>
-          <p className="text-xs text-slate-500">{a.title} · {a.location}</p>
-          <p className="text-[10px] text-slate-600 mt-0.5">
-            {a.channel} · {ageLabel(a.ageMinutes)}
-          </p>
-        </div>
-      ))}
-
-      {/* Empty state */}
-      {totalVisible === 0 && (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-xs text-slate-500 text-center">No alerts match the selected filters</p>
-        </div>
-      )}
-
-      {/* Active HIGH alert — CSS-hidden when filtered out */}
-      <div
-        className={`flex-1 p-3 flex flex-col gap-3 overflow-y-auto${showHighAlert ? '' : ' hidden'}`}
-        aria-live="polite"
-        aria-atomic="false"
-        aria-label="Active alert details"
-        aria-hidden={!showHighAlert}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={14} className="text-amber-400" aria-hidden="true" />
-            <span className="text-sm font-bold text-amber-300">{incident.customerId}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-600/30 text-amber-300 border border-amber-500/40">
-              {incident.severity}
-            </span>
-            <span className="text-xs font-bold px-2 py-0.5 rounded bg-red-900/40 text-red-300 border border-red-600/30">
-              {confirmed ? 'CONFIRMED' : incident.status}
-            </span>
-          </div>
-        </div>
-
-        <p className="text-xs font-mono text-slate-400">{incident.incidentId}</p>
-
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs text-slate-300">
-            <MapPin size={12} className="text-slate-500 shrink-0" aria-hidden="true" />
-            <span>Darwin, NT · All 6 transactions local</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-300">
-            <DollarSign size={12} className="text-slate-500 shrink-0" aria-hidden="true" />
-            <span>A${incident.totalAmount.toFixed(2)} total · {incident.transactionCount} transactions</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-300">
-            <Clock size={12} className="text-slate-500 shrink-0" aria-hidden="true" />
-            <span>75 minutes window · 14:00–15:15 ACST</span>
-          </div>
-        </div>
-
-        <div className="rounded-lg bg-slate-700/50 border border-slate-600/50 p-2.5 grid grid-cols-3 gap-2 text-center">
-          <div title="How unusual the AI thinks this is">
-            <p className="text-xs text-slate-400">AI</p>
-            <p className="text-sm font-bold text-blue-300 font-mono">
-              {Math.round(incident.lstmScore * 100)}%
+      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {/* MONITOR alerts — below the fold of attention, so they stay quiet */}
+        {visibleMonitor.map((a) => (
+          <div key={a.id} className="border-b border-rule-2 px-4 py-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-mono text-micro text-ink-2">{a.id}</span>
+              <span className="text-micro font-semibold whitespace-nowrap text-muted">
+                MONITOR
+              </span>
+            </div>
+            <p className="mt-1 text-micro text-ink-2">
+              {a.title} · {a.location}
+            </p>
+            <p className="mt-0.5 text-micro text-muted">
+              {a.channel} · {ageLabel(a.ageMinutes)}
             </p>
           </div>
-          <div title="How many security rules were broken">
-            <p className="text-xs text-slate-400">Rules</p>
-            <p className="text-sm font-bold text-green-300 font-mono">0%</p>
-          </div>
-          <div title="The combined risk score">
-            <p className="text-xs text-slate-400">Overall</p>
-            <p className="text-sm font-bold text-amber-300 font-mono">
-              {Math.round(incident.threatScore * 100)}%
+        ))}
+
+        {totalVisible === 0 && (
+          <div className="flex flex-1 items-center justify-center p-6">
+            <p className="text-center text-micro text-muted">
+              No alerts match the selected filters
             </p>
           </div>
-        </div>
+        )}
 
-        <div className="rounded-lg bg-blue-900/20 border border-blue-700/30 p-2.5">
-          <p className="text-xs text-blue-300 font-semibold">Flagged by the AI on its own</p>
-          <p className="text-xs text-blue-200/60 mt-0.5 leading-snug">
-            The overall score was below the usual flag line, but the AI alone was confident enough to raise this for review.
-          </p>
-        </div>
-
-        {/* SLA countdown */}
+        {/* The open case */}
         <div
-          className={`rounded-lg p-2.5 border flex items-center justify-between ${
-            sla.isUrgent ? 'bg-red-900/30 border-red-600/40' : 'bg-slate-700/50 border-slate-600/50'
-          }`}
-          aria-label={`SLA countdown: ${sla.display} remaining`}
+          className={`flex flex-1 flex-col gap-4 px-4 py-4${showHighAlert ? '' : ' hidden'}`}
+          role="region"
+          aria-label="Open case detail"
+          aria-hidden={!showHighAlert}
         >
-          <div>
-            <p className={`text-xs font-semibold ${sla.isUrgent ? 'text-red-400' : 'text-slate-400'}`}>
-              SLA Countdown
-            </p>
-            <p className="text-xs text-slate-500">Response required</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <AlertTriangle size={14} className="shrink-0 text-warn" aria-hidden="true" />
+              <span className="u-display truncate text-sm text-ink">{incident.customerId}</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-xs border border-warn-edge bg-warn-wash px-2 py-0.5 text-micro font-bold whitespace-nowrap text-warn">
+                {incident.severity}
+              </span>
+              <span
+                className={`rounded-xs border px-2 py-0.5 text-micro font-bold whitespace-nowrap ${
+                  confirmed
+                    ? 'border-pass-edge bg-pass-wash text-pass-strong'
+                    : 'border-rule bg-paper text-ink-2'
+                }`}
+              >
+                {confirmed ? 'CONFIRMED' : incident.status}
+              </span>
+            </div>
           </div>
-          <p
-            className={`text-xl font-bold font-mono tabular-nums ${sla.isUrgent ? 'text-red-400' : 'text-amber-300'}`}
-            aria-live="polite"
-            aria-label={`${sla.display} remaining`}
-          >
-            {sla.display}
-          </p>
-        </div>
 
-        <div className="flex-1" />
+          <p className="font-mono text-micro text-muted">{incident.incidentId}</p>
 
-        {/* Action buttons */}
-        <div className="space-y-2 mt-auto shrink-0">
-          <button
-            onClick={handleConfirmThreat}
-            disabled={confirming || confirmed}
-            aria-label={confirmed ? 'Threat confirmed' : 'Confirm threat for CUST-18656 and lock account'}
-            className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-400 ${
-              confirmed
-                ? 'bg-green-700 text-green-100 cursor-default'
-                : 'bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-60 disabled:cursor-wait'
+          <dl className="space-y-2 text-micro text-ink-2">
+            <div className="flex items-start gap-2">
+              <MapPin size={12} className="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
+              <dt className="sr-only">Location</dt>
+              <dd>Darwin, NT — all six transactions local</dd>
+            </div>
+            <div className="flex items-start gap-2">
+              <DollarSign size={12} className="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
+              <dt className="sr-only">Value</dt>
+              <dd>
+                <span className="font-mono">A${incident.totalAmount.toFixed(2)}</span> across{' '}
+                <span className="font-mono">{incident.transactionCount}</span> transactions
+              </dd>
+            </div>
+            <div className="flex items-start gap-2">
+              <Clock size={12} className="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
+              <dt className="sr-only">Window</dt>
+              <dd>75 minutes — 14:00 to 15:15 ACST</dd>
+            </div>
+          </dl>
+
+          {/* Score triptych */}
+          <div className="well grid grid-cols-3 divide-x divide-rule px-1 py-3 text-center">
+            <div title="How unusual the model thinks this is">
+              <p className="u-label-muted">Model</p>
+              <p className="u-figure mt-1 text-base text-accent-text">
+                {Math.round(incident.lstmScore * 100)}%
+              </p>
+            </div>
+            <div title="How many of the four security rules were broken">
+              <p className="u-label-muted">Rules</p>
+              <p className="u-figure mt-1 text-base text-pass">
+                {Math.round(incident.siemScore * 100)}%
+              </p>
+            </div>
+            <div title="The blended risk score">
+              <p className="u-label-muted">Overall</p>
+              <p className="u-figure mt-1 text-base text-ink">
+                {Math.round(incident.threatScore * 100)}%
+              </p>
+            </div>
+          </div>
+
+          <div className="note note--accent px-3 py-2">
+            <p className="text-micro font-semibold text-accent-text">
+              Raised by the model alone
+            </p>
+            <p className="mt-1 text-micro leading-snug text-ink-2">
+              The blended score sat below the usual flag line, but the model on its own was
+              confident enough to raise this for review.
+            </p>
+          </div>
+
+          {/* SLA — the one countdown on the page, so it earns the red */}
+          <div
+            className={`flex items-center justify-between gap-3 rounded-sm px-3 py-2 ${
+              sla.isUrgent ? 'note note--warn' : 'well'
             }`}
           >
-            <Lock size={14} aria-hidden="true" />
-            {confirming ? 'Confirming…' : confirmed ? 'Threat Confirmed' : 'Confirm Threat'}
-          </button>
-          <button
-            onClick={onInvestigate}
-            aria-label="Open investigation drawer for CUST-18656"
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold transition-colors border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          >
-            <Search size={14} aria-hidden="true" />
-            Investigate
-          </button>
-          {/* US-11: escalate to Senior Security Engineer */}
-          <button
-            onClick={handleEscalate}
-            disabled={escalated}
-            aria-label={escalated ? 'Escalated to Senior Security Engineer' : 'Escalate to Senior Security Engineer'}
-            className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-xs font-semibold transition-colors border focus:outline-none focus:ring-2 focus:ring-purple-400 ${
-              escalated
-                ? 'bg-purple-900/40 border-purple-700/40 text-purple-300 cursor-default'
-                : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:bg-slate-600 hover:text-slate-200'
-            }`}
-          >
-            <ArrowUpCircle size={13} aria-hidden="true" />
-            {escalated ? 'Escalated' : 'Escalate to Senior Engineer'}
-          </button>
+            <div>
+              <p
+                className={`text-micro font-semibold ${
+                  sla.isUrgent ? 'text-warn' : 'text-ink-2'
+                }`}
+              >
+                Response SLA
+              </p>
+              <p className="text-micro text-muted">Time left to decide</p>
+            </div>
+            {/* Deliberately not a live region. A countdown announced once a
+                second is 248 interruptions; the value stays queryable, and the
+                surrounding note turns red when it goes urgent. */}
+            <p
+              className={`u-figure text-lg ${sla.isUrgent ? 'text-warn' : 'text-ink'}`}
+              aria-label={`${sla.display} remaining`}
+            >
+              {sla.display}
+            </p>
+          </div>
+
+          <div className="flex-1" />
+
+          {/* Actions, in the order an analyst uses them */}
+          <div className="mt-auto space-y-2">
+            <button
+              type="button"
+              onClick={handleConfirmThreat}
+              disabled={confirming || confirmed}
+              aria-label={
+                confirmed
+                  ? 'Threat confirmed'
+                  : `Confirm threat for ${incident.customerId} and lock the account`
+              }
+              className={`btn w-full ${confirmed ? 'btn--settled' : 'btn--primary'}`}
+            >
+              <Lock size={13} aria-hidden="true" />
+              {confirming ? 'Confirming…' : confirmed ? 'Threat confirmed' : 'Confirm threat'}
+            </button>
+
+            <button
+              type="button"
+              onClick={onInvestigate}
+              aria-label={`Open the investigation detail for ${incident.customerId}`}
+              className="btn btn--secondary w-full"
+            >
+              <Search size={13} aria-hidden="true" />
+              Investigate
+            </button>
+
+            <button
+              type="button"
+              onClick={handleEscalate}
+              disabled={escalated}
+              aria-label={
+                escalated
+                  ? 'Escalated to Senior Security Engineer'
+                  : 'Escalate to Senior Security Engineer'
+              }
+              className={`btn w-full ${escalated ? 'btn--settled' : 'btn--quiet'}`}
+            >
+              <ArrowUpCircle size={13} aria-hidden="true" />
+              {escalated ? 'Escalated' : 'Escalate'}
+            </button>
+          </div>
         </div>
       </div>
     </aside>

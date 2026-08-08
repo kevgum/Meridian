@@ -10,12 +10,10 @@ export default function SessionWarningModal({ onStayLoggedIn, onLogout }: Props)
   const [countdown, setCountdown] = useState(60);
   const stayBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Focus the "Stay logged in" button when modal appears
   useEffect(() => {
     stayBtnRef.current?.focus();
   }, []);
 
-  // Count down from 60
   useEffect(() => {
     const id = setInterval(() => {
       setCountdown((s) => {
@@ -30,7 +28,6 @@ export default function SessionWarningModal({ onStayLoggedIn, onLogout }: Props)
     return () => clearInterval(id);
   }, [onLogout]);
 
-  // Trap focus inside modal and handle Escape
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onStayLoggedIn();
@@ -45,41 +42,41 @@ export default function SessionWarningModal({ onStayLoggedIn, onLogout }: Props)
       aria-modal="true"
       aria-labelledby="session-warning-title"
       aria-describedby="session-warning-desc"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="anim-backdrop fixed inset-0 flex items-center justify-center bg-ink/35 p-4"
+      style={{ zIndex: 'var(--z-modal)' }}
     >
-      <div className="bg-slate-800 border border-amber-600/50 rounded-xl p-6 shadow-2xl max-w-sm w-full mx-4">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-amber-900/40">
-            <Clock size={20} className="text-amber-400" />
-          </div>
-          <h2 id="session-warning-title" className="text-base font-bold text-amber-300">
-            Session Expiring
+      <div className="anim-dialog w-full max-w-sm rounded-md border border-warn-edge bg-paper p-6 shadow-[var(--shadow-overlay)]">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-warn-wash text-warn">
+            <Clock size={18} aria-hidden="true" />
+          </span>
+          <h2 id="session-warning-title" className="u-display text-base text-ink">
+            Session expiring
           </h2>
         </div>
 
-        <p id="session-warning-desc" className="text-sm text-slate-300 leading-relaxed mb-4">
-          Your session has been idle for 14 minutes. You will be automatically
-          logged out in{' '}
-          <span className="font-bold text-amber-300 tabular-nums font-mono">
+        <p id="session-warning-desc" className="mt-4 text-xs leading-relaxed text-ink-2">
+          This session has been idle for 14 minutes. You will be signed out in{' '}
+          <span className="font-mono font-bold text-warn" aria-live="off">
             {countdown}s
           </span>{' '}
-          to comply with PCI DSS session security requirements.
+          to satisfy the PCI DSS session-security requirement.
         </p>
 
-        <div className="flex gap-3">
+        {/* Stacks below 640px — two nowrap labels will not sit side by side in
+            a 240px-wide dialog. */}
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
           <button
             ref={stayBtnRef}
+            type="button"
             onClick={onStayLoggedIn}
-            className="flex-1 py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="btn btn--primary flex-1"
           >
-            Stay Logged In
+            Stay signed in
           </button>
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-2 py-2.5 px-4 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-semibold transition-colors border border-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-400"
-          >
-            <LogOut size={14} />
-            Log Out
+          <button type="button" onClick={onLogout} className="btn btn--secondary">
+            <LogOut size={13} aria-hidden="true" />
+            Sign out
           </button>
         </div>
       </div>

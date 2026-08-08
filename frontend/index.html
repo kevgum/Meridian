@@ -4,12 +4,31 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Meridian Sentinel — SOC Dashboard</title>
+    <meta name="theme-color" content="#FDFCFB" />
+    <title>Meridian Sentinel — Fraud Monitoring Console</title>
+
+    <!--
+      Three families, three jobs, nothing spare:
+
+        Space Grotesk 700   panel titles, stat figures, wordmark
+        IBM Plex Sans       all running UI copy (400 / 600)
+        JetBrains Mono      machine-emitted values only — identifiers, scores,
+                            amounts, timestamps, countdowns
+
+      Only the weights actually used are requested. `display=swap` keeps text
+      painted during load rather than blocking first paint.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <a
       href="#main-content"
-      class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm focus:font-semibold"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-500 focus:rounded-sm focus:bg-accent focus:px-4 focus:py-2 focus:text-xs focus:font-semibold focus:text-accent-ink focus:outline-2 focus:outline-offset-2 focus:outline-focus"
     >
       Skip to main content
     </a>

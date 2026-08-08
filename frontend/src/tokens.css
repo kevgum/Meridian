@@ -1,0 +1,144 @@
+/* ---------------------------------------------------------------------------
+   Meridian Sentinel — design tokens
+   ---------------------------------------------------------------------------
+   Portable token export for the dashboard. Imported by index.css; every colour,
+   face, size, radius and easing used anywhere in the app resolves to a name
+   declared here. Nothing downstream inlines a hex, an oklch(), or a font stack.
+
+   Palette rationale
+   -----------------
+   White / orange is the product. Red is the warning register. Green is the pass
+   register. Neutrals are tinted warm (hue ~75-80) rather than left at zero
+   chroma, so grey type sitting beside an orange figure doesn't read cold.
+
+   Contrast, measured against --color-paper (WCAG 2.1):
+
+     ink        15.3:1     ink-2       9.1:1     muted       5.6:1
+     accent      3.3:1  -> UI boundaries, bars, rules and >=18px bold only
+     accent-text 6.7:1  -> the orange to use for any small type
+     accent-ink  5.2:1  -> on an --color-accent fill
+     warn        7.5:1     pass        5.2:1
+
+   Red and green sit ~5.7 apart in OKLab under simulated deuteranopia, which is
+   inherent to a red/green semantic rather than fixable by re-stepping. Every
+   pass/fail state in this app therefore carries an icon AND a word ("OK" /
+   "PROBLEM"), so colour is never the only channel.
+   -------------------------------------------------------------------------- */
+
+@theme {
+  /* -- Type ----------------------------------------------------------------
+     Three families, each with one job:
+
+       display  Space Grotesk 700  panel titles, stat figures, wordmark
+       body     IBM Plex Sans      all running UI copy
+       mono     JetBrains Mono     machine-emitted values only — identifiers,
+                                   scores, amounts, timestamps, countdowns
+
+     Display contrasts body by 300 weight units (400 -> 700), so the hierarchy
+     reads as chosen rather than defaulted.
+     ---------------------------------------------------------------------- */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "IBM Plex Sans", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+
+  /* -- Type scale ---------------------------------------------------------- */
+  --text-micro: 0.6875rem;   /* 11px — uppercase tracked labels only */
+  --text-micro--line-height: 1.2;
+  --text-xs: 0.8125rem;      /* 13px — dense table and feed copy */
+  --text-xs--line-height: 1.45;
+  --text-sm: 0.875rem;       /* 14px — body floor */
+  --text-sm--line-height: 1.55;
+  --text-base: 1rem;
+  --text-base--line-height: 1.55;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.3;
+  --text-xl: 1.5625rem;
+  --text-xl--line-height: 1.15;
+  --text-2xl: 1.953rem;      /* stat-rail figures */
+  --text-2xl--line-height: 1.05;
+
+  /* -- Paper: the surface ramp. Elevation is lightness, never shadow. ------ */
+  --color-paper: oklch(99% 0.006 75);        /* primary surface  */
+  --color-paper-2: oklch(96.8% 0.005 78);    /* recessed rails   */
+  --color-paper-3: oklch(94.4% 0.007 81);    /* wells, stripes   */
+
+  /* -- Rules: hairlines do the containment work cards used to do. ----------
+     `rule` and `rule-2` are structural dividers and read as decoration, so
+     they sit below 3:1 on purpose. A control's own edge cannot — WCAG 1.4.11
+     wants the boundary of a button or chip at 3:1 or better against whatever
+     surface it lands on, so outlined controls use `control-edge`, which clears
+     3:1 on paper, paper-2 and paper-3 alike. */
+  --color-rule: oklch(90% 0.011 77);
+  --color-rule-2: oklch(93.6% 0.008 74);
+  --color-control-edge: oklch(62.2% 0.016 81);
+
+  /* -- Ink ----------------------------------------------------------------- */
+  --color-ink: oklch(25.7% 0.006 78);
+  --color-ink-2: oklch(39.6% 0.011 78);
+  --color-muted: oklch(51.2% 0.014 80);
+
+  /* -- Accent: orange. The product's signal — risk, primary action, brand. -- */
+  --color-accent: oklch(65.3% 0.167 51);
+  --color-accent-hover: oklch(59% 0.153 50);
+  --color-accent-ink: oklch(21.1% 0.017 67);   /* type on an accent fill    */
+  --color-accent-text: oklch(48.1% 0.137 44);  /* orange type on paper      */
+  --color-accent-wash: oklch(97.7% 0.016 71);
+  --color-accent-edge: oklch(87.7% 0.071 70);
+  --color-focus: oklch(59% 0.153 50);
+
+  /* -- Warn: red. Broken rules, urgent SLA, critical severity, failures. --- */
+  --color-warn: oklch(46.4% 0.176 21);
+  --color-warn-strong: oklch(39.8% 0.154 21);
+  --color-warn-wash: oklch(97.1% 0.013 17);
+  --color-warn-edge: oklch(86.7% 0.052 9);
+
+  /* -- Pass: green. Clean checks, healthy state, confirmations. ------------ */
+  --color-pass: oklch(51.5% 0.11 158);
+  --color-pass-strong: oklch(43.8% 0.091 160);
+  --color-pass-wash: oklch(97.5% 0.015 158);
+  --color-pass-edge: oklch(87.8% 0.052 163);
+
+  /* -- Radii: tight. A 5px corner reads instrument; a 16px corner reads app
+        store. Pills are reserved for status badges. ------------------------ */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-pill: 999px;
+
+  /* -- Motion -------------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+:root {
+  /* Durations — three buckets, per the motion canon. */
+  --dur-micro: 110ms;
+  --dur-short: 200ms;
+  --dur-long: 300ms;
+
+  /* Z-index — six named levels, so nothing freestyles a 9999. */
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 400;
+  --z-toast: 500;
+
+  /* Depth — one whisper shadow, used only on genuine overlays. */
+  --shadow-whisper: 0 1px 2px oklch(25.7% 0.006 78 / 0.06);
+  --shadow-overlay: 0 12px 32px oklch(25.7% 0.006 78 / 0.14);
+
+  /* Chart marks. The hybrid score is the headline series and wears the
+     accent; the LSTM series is context and wears recessive ink, separated
+     again by dash pattern so the pair survives greyscale and CVD. */
+  --color-chart-hybrid: var(--color-accent);
+  --color-chart-lstm: var(--color-ink-2);
+  --color-chart-threshold: var(--color-warn);
+  --color-chart-grid: var(--color-rule);
+  --color-chart-axis: var(--color-muted);
+
+  /* Chrome heights, so secondary sticky elements can dock beneath the bar
+     instead of colliding with it. */
+  --bar-height: 3.5rem;
+}
