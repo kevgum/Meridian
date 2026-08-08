@@ -39,22 +39,31 @@ Options::
     --seed N      RNG seed; the same seed always produces the same batch
     --hours N     spread the batch across the last N hours (default 24)
 
-A note on the behaviour score
------------------------------
-The served LSTM cannot score these transactions. It was trained on windows from
-a MinMax-scaled feature distribution, the training set is not in the repo, and
-no scaler artefact was persisted — so a window built from synthetic transaction
-fields falls outside anything the model can interpret. Probed directly, it
-returns 0.0000 for both the canonical clean and canonical fraud windows the
-acceptance tests use.
+The behaviour score is real model output
+----------------------------------------
+Each transaction carries the PaySim-shaped fields the trained feature pipeline
+needs — balances on both sides of the transfer, not just an amount — so the
+batch runs through the project's own ``compute_feature_matrix`` and is scored by
+the served LSTM. Documents written in this mode carry
+``lstm_score_source: "model"``.
 
-Rather than feed the pipeline a meaningless 0.0, this script derives a
-representative score from each transaction's own behavioural profile. Every
-document carries ``lstm_score_source: "representative"`` so no consumer can
-mistake it for inference output, and the console prints the same caveat.
+Two things make that work, and both were previously getting in the way:
 
-Restoring real inference needs two things this repo does not currently ship: the
-training dataset, and the fitted MinMaxScaler saved alongside the checkpoint.
+1. **The feature list.** The model was trained on ``FEATURE_COLS`` in
+   ``src/pipeline/feature_engineering.py``. Positions 5, 6, 10 and 12 are
+   balance_drop_to_zero, amount_to_balance_ratio, dest_received_ratio and
+   step_norm — *not* the geo_velocity / merchant_category / beneficiary_risk /
+   session_entropy names an older draft of the docs listed. A tensor built from
+   the wrong list puts four of twelve inputs on the wrong axis.
+
+2. **The scaling.** Features are MinMax-scaled into [0, 1] before inference.
+   Handing the LSTM a raw value like 8.0 saturates it, and every window collapses
+   to the same near-zero probability regardless of content.
+
+If the inference API is unreachable, the script falls back to a representative
+score derived from each transaction's profile, marks those documents
+``lstm_score_source: "representative"``, and says so loudly in the output. It
+never silently substitutes one for the other.
 """
 
 from __future__ import annotations
@@ -74,6 +83,7 @@ logging.disable(logging.CRITICAL)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.inference_client import LSTMInferenceClient  # noqa: E402
 from src.siem.hybrid_scorer import HybridThreatScorer  # noqa: E402
 from src.siem.playbook_engine import PlaybookEngine  # noqa: E402
 from src.siem.rule_engine import ElasticSIEMCorrelator  # noqa: E402
@@ -151,9 +161,41 @@ class Txn:
     txn_type: str         # PAYMENT | TRANSFER | CASH_OUT — what Kibana groups by
     profile: str
     intent: str           # why this transaction is in the batch
+
+    # Balances on both sides. The trained feature set leans heavily on these —
+    # balance_drop_to_zero, amount_to_balance_ratio and dest_received_ratio are
+    # three of the twelve inputs — so a transaction without them cannot be
+    # scored meaningfully, whatever its amount and merchant say.
+    old_balance_orig: float = 0.0
+    new_balance_orig: float = 0.0
+    old_balance_dest: float = 0.0
+    new_balance_dest: float = 0.0
+    is_fraud: int = 0
+
     lstm_score: float = 0.0
+    lstm_source: str = "representative"
     siem: dict = field(default_factory=dict)
     result: dict = field(default_factory=dict)
+
+    def paysim_row(self) -> dict:
+        """The row shape ``compute_feature_matrix`` expects.
+
+        ``step`` is the hour index the feature pipeline treats as time; it is
+        derived from the transaction's own clock so time_of_day_flag and
+        step_norm line up with when the payment actually happened.
+        """
+        return {
+            "step": self.when.hour + self.when.day * 24,
+            "type": self.txn_type,
+            "amount": self.amount,
+            "nameOrig": self.customer_id,
+            "oldbalanceOrg": self.old_balance_orig,
+            "newbalanceOrig": self.new_balance_orig,
+            "nameDest": self.merchant[0],
+            "oldbalanceDest": self.old_balance_dest,
+            "newbalanceDest": self.new_balance_dest,
+            "isFraud": self.is_fraud,
+        }
 
     def event(self) -> dict:
         """The event dict shape ``ElasticSIEMCorrelator.evaluate`` expects."""
@@ -356,14 +398,116 @@ def build_batch(count: int, seed: int, hours: int) -> list[Txn]:
             intent="slow burn (rules all pass)",
         ))
 
-    # Assign representative behaviour scores, then order oldest-first so the
-    # dashboard feed reads chronologically.
     for txn in txns:
+        _assign_balances(txn, rng)
+        # Fallback only — overwritten by real inference when the API is up.
         low, high = PROFILE_BANDS[txn.profile]
         txn.lstm_score = round(rng.uniform(low, high), 4)
 
     txns.sort(key=lambda t: t.when)
     return txns[:count] if count < len(txns) else txns
+
+
+def _assign_balances(txn: Txn, rng: random.Random) -> None:
+    """Give the transaction both sides of its money movement.
+
+    Three of the twelve trained features read these fields, and they are the
+    strongest signals in the set:
+
+      * ``balance_drop_to_zero``     — the account was emptied
+      * ``amount_to_balance_ratio``  — the payment took the whole balance
+      * ``dest_received_ratio``      — the destination did not actually gain it
+
+    A legitimate payment leaves the sender with a balance and lands in full at
+    the destination. A drain empties the sender, and the mule account it lands
+    in has already moved the money on, so its balance barely changes.
+    """
+    draining = txn.profile in {"attack", "slow_burn"}
+    txn.is_fraud = 1 if draining else 0
+    txn.old_balance_dest = round(rng.uniform(0, 60_000), 2)
+
+    if draining:
+        # The payment takes essentially everything the account held.
+        txn.old_balance_orig = round(txn.amount * rng.uniform(1.0, 1.05), 2)
+        txn.new_balance_orig = round(max(0.0, txn.old_balance_orig - txn.amount), 2)
+        # Mule account: money in, money straight back out.
+        txn.new_balance_dest = round(
+            txn.old_balance_dest + txn.amount * rng.uniform(0.0, 0.12), 2
+        )
+    else:
+        txn.old_balance_orig = round(txn.amount + rng.uniform(1_500, 45_000), 2)
+        txn.new_balance_orig = round(txn.old_balance_orig - txn.amount, 2)
+        txn.new_balance_dest = round(txn.old_balance_dest + txn.amount, 2)
+
+
+def score_with_model(txns: list[Txn], client) -> tuple[bool, str]:
+    """Score every transaction with the served LSTM.
+
+    Builds one 5-transaction window per transaction using the project's own
+    feature pipeline, so the tensor matches what the model was trained on —
+    right feature order, MinMax-scaled into [0, 1]. Windows at the start of a
+    customer's history are zero-padded at the front, the same convention
+    ``engineer_features`` uses.
+
+    Returns:
+        (True, "") on success, or (False, reason) with the batch left on its
+        representative fallback scores. Scores are only written back once the
+        whole batch has come home, so a partial failure never leaves a mix of
+        real and stand-in values.
+    """
+    try:
+        import numpy as np
+        import pandas as pd
+
+        from src.pipeline.feature_engineering import (
+            DEFAULT_SCALER_PATH,
+            SEQ_LEN,
+            compute_feature_matrix,
+        )
+    except ImportError as exc:
+        return False, (
+            f"feature pipeline unavailable ({exc.name} not installed). "
+            "Run inside the dev container: docker compose --profile dev run --rm dev ..."
+        )
+
+    # Refuse to score without the training scaler. Refitting on 50 rows would
+    # still return numbers, and the model would still look like it was working —
+    # but the scaling would be set by this batch's own extremes rather than the
+    # range the model learned, and the answers come back confidently wrong.
+    # Measured: with a batch-fitted scaler, all four planted frauds scored 0.000
+    # while two ordinary payments scored 0.99. A labelled stand-in beats a
+    # plausible-looking wrong number.
+    if not Path(DEFAULT_SCALER_PATH).exists():
+        return False, (
+            f"no fitted feature scaler at {DEFAULT_SCALER_PATH} - inference needs "
+            "the training range. See docs/model-serving.md."
+        )
+
+    try:
+        frame = pd.DataFrame([t.paysim_row() for t in txns])
+        # compute_feature_matrix sorts by (nameOrig, step) and reindexes, so
+        # carry a key through to map scored rows back to their transactions.
+        frame["_batch_idx"] = range(len(txns))
+
+        features, ordered = compute_feature_matrix(frame, fit=False)
+
+        windows = np.zeros((len(ordered), SEQ_LEN, features.shape[1]), dtype=np.float32)
+        for _, group in ordered.groupby("nameOrig"):
+            positions = group.index.to_numpy()
+            for k, pos in enumerate(positions):
+                start = max(0, k - SEQ_LEN + 1)
+                seq = features[positions[start : k + 1]]
+                windows[pos, SEQ_LEN - len(seq) :] = seq
+
+        scores = client.predict_batch(windows)
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{type(exc).__name__}: {exc}"
+
+    for pos, score in enumerate(scores):
+        txn = txns[int(ordered.at[pos, "_batch_idx"])]
+        txn.lstm_score = round(float(score), 4)
+        txn.lstm_source = "model"
+    return True, ""
 
 
 def transaction_doc(txn: Txn) -> dict:
@@ -417,9 +561,15 @@ def transaction_doc(txn: Txn) -> dict:
         "trigger_reason": txn.result.get("trigger_reason", "NONE"),
         "triggered_rules": triggered,
 
-        # Provenance. The rule and blend decisions above are computed; this one
-        # value is not model output, and says so wherever it travels.
-        "lstm_score_source": "representative",
+        # Balances, so a reader can check the model's reasoning against the
+        # inputs that drove it.
+        "old_balance_orig": txn.old_balance_orig,
+        "new_balance_orig": txn.new_balance_orig,
+
+        # Provenance. "model" means the served LSTM scored this window;
+        # "representative" means the API was unreachable and the value is a
+        # stand-in. Never left implicit.
+        "lstm_score_source": txn.lstm_source,
     }
 
 
@@ -466,13 +616,27 @@ def run(count: int, seed: int, hours: int, write: bool) -> int:
     scorer = HybridThreatScorer(playbook_engine=playbook)
     txns = build_batch(count, seed, hours)
 
+    # Score with the real model. The batch is built in full first so the MinMax
+    # scaling sees the whole set, the way the training pipeline scales a dataset.
+    client = LSTMInferenceClient(
+        os.environ.get("LSTM_SERVING_URL", "http://localhost:8080"), timeout=30
+    )
+    if client.health_check():
+        scored_by_model, why = score_with_model(txns, client)
+    else:
+        scored_by_model, why = False, "inference API not reachable"
+
     mode = "WRITE (indexing to Elasticsearch)" if write else "DRY RUN (nothing written)"
     # Printed strings stay ASCII: a Windows console defaults to cp1252 and
     # turns an em-dash into a replacement character mid-demo.
     print(f"\nMERIDIAN SENTINEL - transaction batch  [{mode}]")
     print(f"{len(txns)} transactions, seed {seed}, spread over the last {hours}h.")
     print("Security rules and the blended verdict are computed for real.")
-    print("Behaviour scores are representative - see the module docstring.\n")
+    if scored_by_model:
+        print("Behaviour scores are REAL output from the served LSTM.\n")
+    else:
+        print(f"!! Not scored by the model: {why}")
+        print("   Behaviour scores below are REPRESENTATIVE stand-ins.\n")
 
     header = f"{'#':>3}  {'time':<6} {'customer':<11} {'amount':>11}  {'rules':<5} {'beh':>5} {'risk':>5}  {'verdict':<8} {'why'}"
     print(header)

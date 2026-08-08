@@ -129,18 +129,23 @@ Input [batch, 5, 12]
 **Decision threshold:** 0.92 (sigmoid output ≥ 0.92 = fraud) — sweep-selected to meet the 98.55% accuracy target
 
 **12 Features (in order):**
-1. `amount_delta` — deviation from customer rolling average
+
+> Source of truth: `FEATURE_COLS` in [src/pipeline/feature_engineering.py](src/pipeline/feature_engineering.py). Positions 5, 6, 10 and 12 previously listed here as `geo_velocity_flag`, `merchant_category_code`, `beneficiary_risk_score` and `session_entropy` — those were a design draft and were **never trained**. A tensor built from that older list puts four of twelve inputs on the wrong axis and the model's output is noise.
+
+1. `amount_delta` — deviation from customer rolling average (window=10)
 2. `balance_utilisation_ratio` — newbalanceOrig / oldbalanceOrg
 3. `channel_type_encoded` — PAYMENT=0, TRANSFER=1, CASH_OUT=2, DEBIT=3, CASH_IN=4
-4. `time_of_day_flag` — 0=business hours, 1=off-hours (before 08:00 or after 22:00 AEST)
-5. `geo_velocity_flag` — 1 if location jump > 500 km/h
-6. `merchant_category_code` — MCC label-encoded
+4. `time_of_day_flag` — 0=business hours, 1=off-hours (step % 24 outside 08:00–22:00)
+5. `balance_drop_to_zero` — 1 if the origin balance was emptied (newbalanceOrig < 1 and oldbalanceOrg > 100)
+6. `amount_to_balance_ratio` — amount / oldbalanceOrg; fraud takes the whole balance (≈ 1.0)
 7. `transaction_frequency_1h`
 8. `transaction_frequency_24h`
-9. `cumulative_spend_ratio`
-10. `beneficiary_risk_score`
-11. `amount_zscore`
-12. `session_entropy`
+9. `cumulative_spend_ratio` — amount / customer mean
+10. `dest_received_ratio` — (newbalanceDest − oldbalanceDest) / amount; legitimate ≈ 1.0
+11. `amount_zscore` — per-customer z-score
+12. `step_norm` — normalised time position
+
+**Scaling is part of the model.** Features are MinMax-scaled to [0, 1] and the LSTM saturates on anything outside that range. The fitted scaler must be the *training* one — refitting on a small batch sets min/max from that batch's extremes, and the model returns confidently wrong answers rather than obviously broken ones. Training writes `models/feature_scaler.json`; inference loads it via `compute_feature_matrix(..., fit=False)`.
 
 ---
 
@@ -184,8 +189,8 @@ SIEM score normalisation:
 | Service | Port | Credentials |
 |---------|------|-------------|
 | LSTM Inference API | 8080 | — |
-| Elasticsearch | 9200 | elastic / meridian123 |
-| Kibana | 5601 | elastic / meridian123 |
+| Elasticsearch | 9200 | `elastic` / `$ELASTIC_PASSWORD` from `.env` |
+| Kibana | 5601 | `elastic` / `$ELASTIC_PASSWORD` from `.env` |
 | Logstash TCP | 5000 | — |
 
 All credentials come from `.env` (copy from `.env.example`). Never hardcode.

@@ -38,8 +38,19 @@ Class imbalance handled with BCEWithLogitsLoss(pos_weight=1.0).
 
 ## Known Limitations
 1. Trained on PaySim synthetic data — not real Meridian transaction data
-2. Mock features (geo_velocity_flag, session_entropy) use random values in this prototype
-3. No SHAP/LIME explainability — planned for v2
+2. **The fitted MinMaxScaler was not persisted with this checkpoint.** Inference
+   must scale features using the range the model was trained on; refitting a
+   scaler on a small live batch sets min/max from that batch's own extremes, and
+   the model then returns confidently wrong scores rather than obviously broken
+   ones. Measured on a 50-transaction batch, a refit scaler put every planted
+   fraud at 0.000 and two ordinary payments at 0.99. Re-run training against the
+   PaySim dataset to write `models/feature_scaler.json`; until that exists,
+   `scripts/generate_transaction_batch.py` refuses to claim model scores.
+3. The feature list is `FEATURE_COLS` in `src/pipeline/feature_engineering.py`.
+   An earlier draft naming `geo_velocity_flag`, `merchant_category_code`,
+   `beneficiary_risk_score` and `session_entropy` at positions 5, 6, 10 and 12
+   was never trained — do not build input tensors from it.
+4. No SHAP/LIME explainability — planned for v2
 
 ## Compliance
 | Control | Standard | Status |
