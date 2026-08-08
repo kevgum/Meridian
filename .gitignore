@@ -62,3 +62,10 @@ certs/*.ext
 frontend/node_modules/
 frontend/dist/
 frontend/.vercel/
+
+# Agent tooling — local skill definitions and lockfile, not project source.
+# .hallmark/ is deliberately NOT ignored: it records the design decisions a
+# future redesign reads to avoid repeating the same structure.
+.agents/
+.claude/
+skills-lock.json
