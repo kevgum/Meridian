@@ -139,11 +139,18 @@ class PlaybookEngine:
             "lon": event.get("lon"),
         }
 
+        now = datetime.now(tz=timezone.utc).isoformat()
+
         return {
             "incident_id": str(uuid.uuid4()),
             "customer_id": customer_id,
             "action": "LOCK_ACCOUNT",
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            "timestamp": now,
+            # ECS duplicate of ``timestamp``. Kibana's data views and any ECS
+            # tooling expect ``@timestamp``; the dashboard reads ``timestamp``.
+            # Writing both keeps either consumer working without a migration of
+            # the records already indexed.
+            "@timestamp": now,
             "threat_score": round(threat_score, 4),
             "lstm_score": round(scorer_result.get("lstm_score", 0.0), 4),
             "siem_score": round(scorer_result.get("siem_score", 0.0), 4),

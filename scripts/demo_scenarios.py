@@ -280,17 +280,29 @@ def _build_es_client():
     return Elasticsearch(host, basic_auth=("elastic", password), request_timeout=10)
 
 
-def _index_transaction(es, scenario: dict) -> None:
-    """Index a transaction doc so it appears in the Kibana dashboard.
+def _index_transaction(es, scenario: dict, lstm_score: float, siem_pass: bool) -> None:
+    """Index a transaction doc so it appears in Kibana *and* in the dashboard.
 
-    The document is shaped to match the ECS fields the dashboard reads
-    (transaction.type, transaction.amount, labels.is_fraud, source.geo.*).
-    Uses ``@timestamp`` = now so it falls inside the default dashboard window.
+    Two consumers read this index and they disagree about field layout, so the
+    document carries the same facts twice:
+
+      * nested ECS fields (``transaction.*``, ``labels.*``, ``source.geo.*``)
+        are what the Kibana saved objects aggregate on;
+      * flat fields (``amount``, ``merchant_id``, ``channel``, ``lstm_score``)
+        are what the React dashboard's ``mapEsHitToTransaction`` reads.
+
+    Writing only the nested shape is why live runs used to appear in Kibana but
+    render as a feed of $0.00 rows in the dashboard.
+
+    Uses ``@timestamp`` = now so the doc falls inside the default Kibana window.
     """
     event = scenario["event"]
-    today = datetime.now(tz=timezone.utc).strftime("%Y.%m.%d")
+    now = datetime.now(tz=timezone.utc)
+    today = now.strftime("%Y.%m.%d")
     doc = {
-        "@timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "@timestamp": now.isoformat(),
+
+        # --- nested ECS shape: the Kibana board ---
         "transaction": {
             "type": event["channel"],
             "amount": event["amount"],
@@ -299,7 +311,15 @@ def _index_transaction(es, scenario: dict) -> None:
         "labels": {"is_fraud": scenario["is_fraud"]},
         "source": {"geo": {"lat": event["lat"], "lon": event["lon"]}},
         "event": {"category": "financial", "type": "transaction"},
+
+        # --- flat shape: the dashboard feed ---
         "customer_id": event["customer_id"],
+        "amount": event["amount"],
+        "merchant_id": event["merchant_id"],
+        "channel": "Online" if event["channel"] == "TRANSFER" else "Card",
+        "siem_pass": siem_pass,
+        "lstm_score": lstm_score,
+        "lstm_score_source": "representative",
     }
     es.index(index=f"meridian-transactions-{today}", document=doc, refresh=True)
 
@@ -345,7 +365,8 @@ def run(live: bool) -> None:
         # live mode, the incident that gets written to Elasticsearch.
         result = scorer.score(scenario["lstm_score"], siem, scenario["event"])
         if live:
-            _index_transaction(es, scenario)
+            siem_pass = not any(rule["triggered"] for rule in siem["rules"])
+            _index_transaction(es, scenario, scenario["lstm_score"], siem_pass)
         _print_scenario(scenario, siem, result)
 
     print("\n" + "=" * 66)

@@ -7,10 +7,16 @@ const POLL_INTERVAL_MS = 5_000;
 
 // In dev: Vite proxy forwards /api/* → http://localhost:9200/*
 // On Vercel: request will fail → graceful fallback to mock data
+//
+// Incidents sort on `timestamp`, NOT `@timestamp`. Every incident the playbook
+// engine has ever written carries `timestamp`; none of the older ones carry
+// `@timestamp`. Elasticsearch rejects a sort on a field no index in the pattern
+// maps — the whole request 400s — so sorting on `@timestamp` here meant the
+// incident query failed against every existing record.
 const ES_TRANSACTIONS_URL =
   '/api/meridian-transactions-*/_search?sort=%40timestamp:desc&size=16';
 const ES_INCIDENTS_URL =
-  '/api/meridian-incidents-*/_search?sort=%40timestamp:desc&size=10&q=status:OPEN';
+  '/api/meridian-incidents-*/_search?sort=timestamp:desc&size=10&q=status:OPEN';
 
 function mapEsHitToTransaction(hit: Record<string, unknown>): Transaction {
   const src = (hit['_source'] as Record<string, unknown>) ?? {};
@@ -66,37 +72,34 @@ export function useElasticPolling(): PollingState {
   const isMounted = useRef(true);
 
   const poll = useCallback(async () => {
-    try {
-      const [txRes, incRes] = await Promise.all([
-        axios.get(ES_TRANSACTIONS_URL, { timeout: 3_000 }),
-        axios.get(ES_INCIDENTS_URL, { timeout: 3_000 }),
-      ]);
+    // `allSettled`, not `all`: the two queries are independent, and one of them
+    // failing should not blank the other. Under `all`, a single rejected query
+    // dropped the whole poll into the catch block and pinned the dashboard to
+    // mock data with no visible reason.
+    const [txResult, incResult] = await Promise.allSettled([
+      axios.get(ES_TRANSACTIONS_URL, { timeout: 3_000 }),
+      axios.get(ES_INCIDENTS_URL, { timeout: 3_000 }),
+    ]);
 
-      const txHits: Record<string, unknown>[] =
-        txRes.data?.hits?.hits ?? [];
-      const incHits: Record<string, unknown>[] =
-        incRes.data?.hits?.hits ?? [];
+    if (!isMounted.current) return;
 
-      if (!isMounted.current) return;
+    const txHits: Record<string, unknown>[] =
+      txResult.status === 'fulfilled' ? (txResult.value.data?.hits?.hits ?? []) : [];
+    const incHits: Record<string, unknown>[] =
+      incResult.status === 'fulfilled' ? (incResult.value.data?.hits?.hits ?? []) : [];
 
-      setState((prev) => ({
-        ...prev,
-        transactions:
-          txHits.length > 0
-            ? txHits.map(mapEsHitToTransaction)
-            : prev.transactions,
-        incident:
-          incHits.length > 0
-            ? mapEsHitToIncident(incHits[0])
-            : prev.incident,
-        isLive: true,
-      }));
-    } catch {
-      // ES unreachable (expected on Vercel) — stay on current data silently
-      if (isMounted.current) {
-        setState((prev) => ({ ...prev, isLive: false }));
-      }
-    }
+    // Live means at least one query reached Elasticsearch and came back. Both
+    // failing is the expected case on Vercel, where there is no cluster to
+    // reach — fall back to the bundled sample data without complaint.
+    const reachedCluster =
+      txResult.status === 'fulfilled' || incResult.status === 'fulfilled';
+
+    setState((prev) => ({
+      ...prev,
+      transactions: txHits.length > 0 ? txHits.map(mapEsHitToTransaction) : prev.transactions,
+      incident: incHits.length > 0 ? mapEsHitToIncident(incHits[0]) : prev.incident,
+      isLive: reachedCluster,
+    }));
   }, []);
 
   useEffect(() => {
