@@ -104,7 +104,7 @@ The defaults work for local development without any changes. The `.env` file is 
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `ELASTIC_PASSWORD` | `meridian123` | Change this for any shared or cloud environment |
+| `ELASTIC_PASSWORD` | _(none — you must set it)_ | Elastic superuser password. Set a real value before first `docker compose up`; it seeds the cluster on first boot |
 | `LSTM_SERVING_URL` | `http://localhost:8080` | Internal Docker network uses `http://lstm-serving:8080` |
 | `DECISION_THRESHOLD` | `0.92` | Fraud classification threshold (sweep-tuned on 35-epoch retrain) |
 
@@ -143,7 +143,7 @@ Expected output when everything is working:
 Stack is up
 
   LSTM Inference API  ->  http://localhost:8080/v1/models/lstm
-  Kibana              ->  http://localhost:5601  (elastic / meridian123)
+  Kibana              ->  http://localhost:5601  (elastic / $ELASTIC_PASSWORD)
   Elasticsearch       ->  http://localhost:9200
   Logstash TCP        ->  localhost:5000
 ```
@@ -167,7 +167,8 @@ docker compose up -d elasticsearch kibana logstash lstm-serving
 docker compose ps
 
 # Step 5 — open Kibana
-# Navigate to http://localhost:5601  (elastic / meridian123)
+# Navigate to http://localhost:5601
+# Sign in as `elastic` with the ELASTIC_PASSWORD value from your .env
 ```
 
 ---

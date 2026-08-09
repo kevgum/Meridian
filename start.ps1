@@ -52,17 +52,32 @@ Step "Setting up environment"
 
 if (-not (Test-Path ".env")) {
     Copy-Item ".env.example" ".env"
-    Ok "Created .env from .env.example (defaults are fine for local development)"
+    Ok "Created .env from .env.example"
+    Fail @"
+Set ELASTIC_PASSWORD in .env before starting the stack.
+
+.env.example ships a placeholder, and Elasticsearch seeds the elastic
+superuser from this value on first boot - so an unedited placeholder
+silently becomes the live cluster password.
+
+Edit .env, set a real ELASTIC_PASSWORD, then re-run .\start.ps1
+"@
 } else {
     Ok ".env already exists - skipping"
 }
 
-# Read ELASTIC_PASSWORD from .env for health-check polling
+# Read ELASTIC_PASSWORD from .env for health-check polling.
+# No fallback default: an unset or placeholder password must fail loudly
+# rather than seeding the cluster with a guessable credential.
 $envContent = Get-Content ".env" | Where-Object { $_ -match "^ELASTIC_PASSWORD=" }
 if ($envContent) {
     $elasticPassword = ($envContent -split "=", 2)[1].Trim()
 } else {
-    $elasticPassword = "meridian123"
+    $elasticPassword = ""
+}
+
+if (-not $elasticPassword -or $elasticPassword -eq "change_me_before_running") {
+    Fail "ELASTIC_PASSWORD is unset or still the placeholder in .env. Set a real value and re-run."
 }
 
 # The lstm-serving container writes its ONNX output into this directory.
@@ -170,7 +185,7 @@ if ($testExit -ne 0) {
 Step "Stack is up"
 Write-Host ""
 Write-Host "  LSTM Inference API  ->  http://localhost:8080/v1/models/lstm" -ForegroundColor Cyan
-Write-Host "  Kibana              ->  http://localhost:5601  (elastic / $elasticPassword)" -ForegroundColor Cyan
+Write-Host "  Kibana              ->  http://localhost:5601  (sign in as elastic)" -ForegroundColor Cyan
 Write-Host "  Elasticsearch       ->  http://localhost:9200" -ForegroundColor Cyan
 Write-Host "  Logstash TCP        ->  localhost:5000" -ForegroundColor Cyan
 Write-Host ""

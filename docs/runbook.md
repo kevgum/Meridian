@@ -63,7 +63,7 @@ docker compose down -v         # stop containers AND delete ES data (full reset 
 ```bash
 docker compose ps                                  # all services should show "healthy"
 curl http://localhost:8080/v1/models/lstm           # LSTM serving status
-curl -u elastic:meridian123 http://localhost:9200/_cluster/health | grep status   # green/yellow
+curl -u "elastic:$ELASTIC_PASSWORD" http://localhost:9200/_cluster/health | grep status   # green/yellow
 docker compose logs <service> --tail 50             # service-specific logs
 ```
 

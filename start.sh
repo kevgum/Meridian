@@ -51,7 +51,14 @@ step "Setting up environment"
 
 if [ ! -f .env ]; then
     cp .env.example .env
-    ok "Created .env from .env.example (defaults are fine for local development)"
+    ok "Created .env from .env.example"
+    fail "Set ELASTIC_PASSWORD in .env before starting the stack.
+
+.env.example ships a placeholder, and Elasticsearch seeds the elastic
+superuser from this value on first boot — so an unedited placeholder
+silently becomes the live cluster password.
+
+Edit .env, set a real ELASTIC_PASSWORD, then re-run ./start.sh"
 else
     ok ".env already exists — skipping"
 fi
@@ -61,9 +68,14 @@ fi
 mkdir -p models/serving/lstm_v1
 ok "models/serving/lstm_v1/ directory ready"
 
-# Read ELASTIC_PASSWORD from .env for health-check polling below
+# Read ELASTIC_PASSWORD from .env for health-check polling below.
+# No fallback default: an unset or placeholder password must fail loudly
+# rather than seeding the cluster with a guessable credential.
 ELASTIC_PASSWORD=$(grep -E '^ELASTIC_PASSWORD=' .env | cut -d '=' -f2 | tr -d '\r\n')
-ELASTIC_PASSWORD="${ELASTIC_PASSWORD:-meridian123}"
+
+if [ -z "$ELASTIC_PASSWORD" ] || [ "$ELASTIC_PASSWORD" = "change_me_before_running" ]; then
+    fail "ELASTIC_PASSWORD is unset or still the placeholder in .env. Set a real value and re-run."
+fi
 
 # =============================================================================
 # 3. Build Docker images
@@ -135,7 +147,7 @@ ok "All tests passed"
 step "Stack is up"
 echo ""
 echo -e "  ${CYAN}LSTM Inference API${NC}  →  http://localhost:8080/v1/models/lstm"
-echo -e "  ${CYAN}Kibana${NC}              →  http://localhost:5601  (elastic / ${ELASTIC_PASSWORD})"
+echo -e "  ${CYAN}Kibana${NC}              →  http://localhost:5601  (sign in as elastic)"
 echo -e "  ${CYAN}Elasticsearch${NC}       →  http://localhost:9200"
 echo -e "  ${CYAN}Logstash TCP${NC}        →  localhost:5000"
 echo ""

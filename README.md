@@ -48,7 +48,7 @@ Expected output:
   OK All tests passed
 
   LSTM Inference API  ->  http://localhost:8080/v1/models/lstm
-  Kibana              ->  http://localhost:5601  (elastic / meridian123)
+  Kibana              ->  http://localhost:5601  (elastic / $ELASTIC_PASSWORD)
   Elasticsearch       ->  http://localhost:9200
   Logstash TCP        ->  localhost:5000
 ```
