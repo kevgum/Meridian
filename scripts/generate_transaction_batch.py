@@ -212,6 +212,10 @@ class Txn:
             "prev_timestamp": self.prev_when.isoformat(),
             "merchant_id": self.merchant[0],
             "channel": self.txn_type,
+            # Not read by any SIEM rule — carried through so the incident this
+            # transaction fires (PlaybookEngine._build_incident) can show a real
+            # place name instead of a hardcoded one.
+            "location": self.location,
         }
 
 

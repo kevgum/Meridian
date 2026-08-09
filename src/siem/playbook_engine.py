@@ -137,6 +137,7 @@ class PlaybookEngine:
             "timestamp": event.get("timestamp"),
             "lat": event.get("lat"),
             "lon": event.get("lon"),
+            "location": event.get("location"),
         }
 
         now = datetime.now(tz=timezone.utc).isoformat()
