@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AlertTriangle, Lock, Search, MapPin, DollarSign, Clock, ArrowUpCircle } from 'lucide-react';
 import axios from 'axios';
-import type { Incident } from '../types';
+import type { Incident, Transaction } from '../types';
 import type { ToastMessage } from './Toast';
+import { formatWindow } from '../lib/formatWindow';
 
 type SeverityFilter = 'ALL' | 'HIGH' | 'MONITOR';
 type ChannelFilter = 'ALL' | 'Online' | 'Card' | 'Mobile';
@@ -21,6 +22,28 @@ const MONITOR_ALERTS: MonitorAlert[] = [
   { id: 'CUST-73940', channel: 'Card', ageMinutes: 370, title: 'Electronics purchase', location: 'Melbourne, VIC' },
 ];
 
+/** MONITOR-tier alerts: transactions with a raised risk score that didn't
+ * cross the 0.70 flag line — the queue's "worth a glance" tier. Falls back
+ * to the two bundled examples above when the live feed has nothing at that
+ * level right now, the same isLive-fallback pattern the rest of the console
+ * uses rather than showing an empty queue at every quiet moment. */
+function deriveMonitorAlerts(transactions: Transaction[]): MonitorAlert[] {
+  const now = Date.now();
+  return transactions
+    .filter((t) => !t.isActive && (t.threatScore ?? 0) > 0 && (t.threatScore ?? 0) < 0.70)
+    .slice(0, 6)
+    .map((t) => {
+      const ts = new Date(t.timestamp).getTime();
+      return {
+        id: t.customerId,
+        channel: t.channel,
+        ageMinutes: Number.isNaN(ts) ? 0 : Math.max(0, Math.round((now - ts) / 60_000)),
+        title: `${t.merchantName || t.merchantId} charge`,
+        location: t.location || 'Location unavailable',
+      };
+    });
+}
+
 const HIGH_ALERT_CHANNEL: ChannelFilter = 'Mobile';
 const HIGH_ALERT_AGE_MINUTES = 14;
 
@@ -37,6 +60,7 @@ function ageLabel(minutes: number): string {
 
 interface Props {
   incident: Incident;
+  transactions: Transaction[];
   onInvestigate: () => void;
   onToast: (t: Omit<ToastMessage, 'id'>) => void;
 }
@@ -87,7 +111,7 @@ function FilterRow<T extends string>({
   );
 }
 
-export default function AlertQueue({ incident, onInvestigate, onToast }: Props) {
+export default function AlertQueue({ incident, transactions, onInvestigate, onToast }: Props) {
   const sla = useSlaCountdown(248);
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -95,6 +119,17 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('ALL');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('ALL');
   const [escalated, setEscalated] = useState(false);
+
+  const monitorAlerts = useMemo(() => {
+    const live = deriveMonitorAlerts(transactions);
+    return live.length > 0 ? live : MONITOR_ALERTS;
+  }, [transactions]);
+
+  const caseTxns = useMemo(
+    () => transactions.filter((t) => t.customerId === incident.customerId),
+    [transactions, incident.customerId],
+  );
+  const caseWindow = formatWindow(caseTxns);
 
   function handleEscalate() {
     setEscalated(true);
@@ -111,7 +146,7 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
     (channelFilter === 'ALL' || channelFilter === HIGH_ALERT_CHANNEL) &&
     HIGH_ALERT_AGE_MINUTES <= limit;
 
-  const visibleMonitor = MONITOR_ALERTS.filter(
+  const visibleMonitor = monitorAlerts.filter(
     (a) =>
       (severityFilter === 'ALL' || severityFilter === 'MONITOR') &&
       (channelFilter === 'ALL' || a.channel === channelFilter) &&
@@ -249,20 +284,21 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
             <div className="flex items-start gap-2">
               <MapPin size={12} className="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
               <dt className="sr-only">Location</dt>
-              <dd>Darwin, NT — all six transactions local</dd>
+              <dd>{incident.location || 'Location unavailable'}</dd>
             </div>
             <div className="flex items-start gap-2">
               <DollarSign size={12} className="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
               <dt className="sr-only">Value</dt>
               <dd>
                 <span className="font-mono">A${incident.totalAmount.toFixed(2)}</span> across{' '}
-                <span className="font-mono">{incident.transactionCount}</span> transactions
+                <span className="font-mono">{incident.transactionCount}</span> transaction
+                {incident.transactionCount === 1 ? '' : 's'}
               </dd>
             </div>
             <div className="flex items-start gap-2">
               <Clock size={12} className="mt-0.5 shrink-0 text-muted" aria-hidden="true" />
               <dt className="sr-only">Window</dt>
-              <dd>75 minutes — 14:00 to 15:15 ACST</dd>
+              <dd>{caseWindow}</dd>
             </div>
           </dl>
 
@@ -290,11 +326,14 @@ export default function AlertQueue({ incident, onInvestigate, onToast }: Props) 
 
           <div className="note note--accent px-3 py-2">
             <p className="text-micro font-semibold text-accent-text">
-              Raised by the model alone
+              {incident.triggerReason === 'LSTM_ALONE'
+                ? 'Raised by the model alone'
+                : 'Raised by the blended score'}
             </p>
             <p className="mt-1 text-micro leading-snug text-ink-2">
-              The blended score sat below the usual flag line, but the model on its own was
-              confident enough to raise this for review.
+              {incident.triggerReason === 'LSTM_ALONE'
+                ? 'The blended score sat below the usual flag line, but the model on its own was confident enough to raise this for review.'
+                : 'Behaviour and rules together crossed the 0.70 flag line — neither check alone was enough.'}
             </p>
           </div>
 

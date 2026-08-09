@@ -14,12 +14,11 @@ import Toast, { type ToastMessage } from './components/Toast';
 import { useElasticPolling } from './hooks/useElasticPolling';
 import { useIdleTimer } from './hooks/useIdleTimer';
 import { useA11yAnnouncer } from './hooks/useA11yAnnouncer';
-import { CUST18656_SIEM_RESULT, HISTORY_EVENTS, KPI_STATS } from './data/mockData';
 
 type AppState = 'active' | 'warn' | 'expired';
 
 export default function App() {
-  const { transactions, incident, isLive } = useElasticPolling();
+  const { transactions, incident, siemResult, history, kpiStats, isLive } = useElasticPolling();
   const { announce } = useA11yAnnouncer();
 
   const [appState, setAppState] = useState<AppState>('active');
@@ -79,8 +78,8 @@ export default function App() {
   return (
     <>
       <div className="flex min-h-screen flex-col bg-paper text-ink">
-        <TopBar stats={KPI_STATS} isLive={isLive} />
-        <StatRail stats={KPI_STATS} />
+        <TopBar stats={kpiStats} isLive={isLive} />
+        <StatRail stats={kpiStats} />
 
         {/* The workbench: feed on the left rail, the case in the middle, the
             queue and its actions on the right rail. Column widths are uneven
@@ -91,12 +90,13 @@ export default function App() {
         >
           <TransactionFeed transactions={transactions} />
           <DetectionPanel
-            siemResult={CUST18656_SIEM_RESULT}
+            siemResult={siemResult}
             lstmScore={incident.lstmScore}
             incident={incident}
           />
           <AlertQueue
             incident={incident}
+            transactions={transactions}
             onInvestigate={() => setDrawerOpen(true)}
             onToast={addToast}
           />
@@ -104,7 +104,7 @@ export default function App() {
 
         {/* Context strip — history and standing obligations, below the work. */}
         <div className="flex shrink-0 flex-col lg:h-56 lg:flex-row">
-          <HybridChart events={HISTORY_EVENTS} />
+          <HybridChart events={history} />
           <ComplianceBadges />
         </div>
 
@@ -121,7 +121,11 @@ export default function App() {
       </div>
 
       {drawerOpen && (
-        <InvestigateDrawer incident={incident} onClose={() => setDrawerOpen(false)} />
+        <InvestigateDrawer
+          incident={incident}
+          transactions={transactions}
+          onClose={() => setDrawerOpen(false)}
+        />
       )}
 
       {appState === 'warn' && (

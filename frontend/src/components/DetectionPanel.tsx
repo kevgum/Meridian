@@ -7,12 +7,43 @@ interface Props {
   incident: Incident;
 }
 
-const RULE_EVIDENCE: Record<string, string> = {
-  RULE_001: '$256.74 — under the $10,000 threshold',
-  RULE_002: 'All six transactions in Darwin, NT — velocity 0 km/h',
-  RULE_003: '14:00 ACST — inside the 08:00–22:00 window',
-  RULE_004: 'M5732 is not in watchlist/merchants.json',
-};
+/**
+ * Turns a rule's real evidence object (ElasticSIEMCorrelator.evaluate() —
+ * src/siem/rule_engine.py) into one line of prose. One formatter for every
+ * incident, live or the bundled fallback, because both now carry the same
+ * evidence shape (see mockData.ts).
+ */
+function formatRuleEvidence(ruleId: string, evidence: Record<string, unknown>): string {
+  if (typeof evidence.error === 'string') return `Could not check — ${evidence.error}`;
+
+  const num = (key: string) => Number(evidence[key] ?? 0);
+  const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  switch (ruleId) {
+    case 'RULE_001':
+      return `${money(num('amount'))} — threshold ${money(num('threshold'))}`;
+    case 'RULE_002': {
+      const v = num('velocity_kmh');
+      return v === 0
+        ? 'No location change since the previous transaction — 0 km/h'
+        : `${v.toLocaleString(undefined, { maximumFractionDigits: 1 })} km/h between consecutive transactions — threshold ${num('threshold_kmh')} km/h`;
+    }
+    case 'RULE_003': {
+      const zone = String(evidence.timezone ?? 'Australia/Sydney').split('/').pop();
+      const window = String(evidence.off_hours_window ?? 'before 08:00 or at/after 22:00');
+      return `${evidence.local_time ?? '—'} ${zone} — flags ${window}`;
+    }
+    case 'RULE_004': {
+      const merchantId = String(evidence.merchant_id ?? '');
+      const size = num('watchlist_size');
+      return merchantId
+        ? `${merchantId} — checked against ${size || 'the'} watchlisted merchant${size === 1 ? '' : 's'}`
+        : 'No merchant on this transaction';
+    }
+    default:
+      return '';
+  }
+}
 
 /**
  * The four fixed rules, one row each.
@@ -50,7 +81,7 @@ function SecurityRules({ siemResult }: { siemResult: SIEMResult }) {
                 <span className="text-xs font-semibold text-ink">{rule.name}</span>
               </div>
               <p className="mt-1 text-micro leading-snug text-ink-2">
-                {RULE_EVIDENCE[rule.ruleId]}
+                {formatRuleEvidence(rule.ruleId, rule.evidence)}
               </p>
             </div>
 
@@ -70,11 +101,17 @@ function SecurityRules({ siemResult }: { siemResult: SIEMResult }) {
         ))}
       </ul>
 
-      <p className="note note--pass mt-4 px-3 py-2 text-micro text-pass-strong">
+      <p
+        className={`note mt-4 px-3 py-2 text-micro ${
+          siemResult.triggeredCount === 0 ? 'note--pass text-pass-strong' : 'note--warn text-warn'
+        }`}
+      >
         <span className="font-semibold">
           <span className="font-mono">{siemResult.triggeredCount}</span> of 4 rules broken.
         </span>{' '}
-        Every fixed check passed — nothing here looks wrong on the rules alone.
+        {siemResult.triggeredCount === 0
+          ? 'Every fixed check passed — nothing here looks wrong on the rules alone.'
+          : 'On its own this raises the risk score part-way — it takes either several rules together or agreement from the behaviour check to flag the case.'}
       </p>
     </div>
   );
@@ -86,16 +123,19 @@ function SecurityRules({ siemResult }: { siemResult: SIEMResult }) {
  * The threshold marker is drawn on the meter itself so the reading is spatial —
  * the analyst sees how far short of, or past, the alert line the score sits.
  */
-function BehaviourCheck({ lstmScore }: { lstmScore: number }) {
+function BehaviourCheck({
+  lstmScore,
+  triggerReason,
+}: {
+  lstmScore: number;
+  triggerReason: Incident['triggerReason'];
+}) {
   const pct = Math.round(lstmScore * 100);
-  const thresholdPct = 92;
-
-  const signals = [
-    'Rapid multi-merchant spend pattern',
-    'Electronics and restaurant MCCs alternating',
-    'Six transactions across 75 minutes',
-    'Spending velocity well above this customer’s baseline',
-  ];
+  // The system's own LSTM_ALONE trigger (src/siem/hybrid_scorer.py,
+  // _LSTM_ALONE_THRESHOLD) — not the model's 0.92 evaluation threshold from
+  // training, which measures a different thing (accuracy/FPR against
+  // ground truth) and would mislabel the line an analyst actually cares about.
+  const thresholdPct = 70;
 
   return (
     <div className="min-w-0 flex-1">
@@ -143,23 +183,20 @@ function BehaviourCheck({ lstmScore }: { lstmScore: number }) {
       <div className="note note--accent mt-3 px-3 py-2">
         <p className="text-micro font-semibold text-accent-text">Why it was flagged</p>
         <p className="mt-1 text-micro leading-snug text-ink-2">
-          The model was confident enough on its own. It does not wait for the fixed rules
-          to agree before raising a case for review.
+          {triggerReason === 'LSTM_ALONE'
+            ? "The model was confident enough on its own. It does not wait for the fixed rules to agree before raising a case for review."
+            : 'The blended score — behaviour weighted 60%, rules weighted 40% — crossed the 0.70 flag line on its own; the two checks agreed.'}
         </p>
       </div>
 
       <div className="mt-3">
         <p className="u-label-muted">What looked unusual</p>
-        <ul className="mt-2 space-y-2">
-          {signals.map((signal) => (
-            <li key={signal} className="flex items-start gap-2 text-micro text-ink-2">
-              <span className="mt-0.5 shrink-0 font-mono text-accent" aria-hidden="true">
-                ›
-              </span>
-              {signal}
-            </li>
-          ))}
-        </ul>
+        <p className="mt-2 text-micro leading-snug text-ink-2">
+          The score above is the model's own confidence, learned from this customer's
+          transaction history — not a checklist. Feature-level attribution (exactly which
+          signals drove it) isn't available in this prototype; see MODEL_CARD.md,
+          Known Limitations.
+        </p>
       </div>
     </div>
   );
@@ -174,7 +211,11 @@ function Verdict({ incident }: { incident: Incident }) {
 
         <div className="min-w-0 flex-1">
           <p className="u-display text-sm text-ink">
-            Flagged for review — {Math.round(incident.lstmScore * 100)}% suspicious
+            Flagged for review —{' '}
+            {Math.round(
+              (incident.triggerReason === 'LSTM_ALONE' ? incident.lstmScore : incident.threatScore) * 100,
+            )}
+            % suspicious
           </p>
 
           <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-micro text-muted">
@@ -226,14 +267,15 @@ export default function DetectionPanel({ siemResult, lstmScore, incident }: Prop
           model that has learned this customer’s normal behaviour.
         </p>
         <p className="mt-1 font-mono text-micro text-muted">
-          Darwin, NT · {incident.transactionCount} transactions · A$
-          {incident.totalAmount.toFixed(2)} · {incident.incidentId}
+          {incident.location || 'Location unavailable'} · {incident.transactionCount} transaction
+          {incident.transactionCount === 1 ? '' : 's'} · A${incident.totalAmount.toFixed(2)} ·{' '}
+          {incident.incidentId}
         </p>
 
         <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:gap-8">
           <SecurityRules siemResult={siemResult} />
           <div className="hidden w-px shrink-0 self-stretch bg-rule lg:block" aria-hidden="true" />
-          <BehaviourCheck lstmScore={lstmScore} />
+          <BehaviourCheck lstmScore={lstmScore} triggerReason={incident.triggerReason} />
         </div>
 
         <Verdict incident={incident} />

@@ -12,6 +12,10 @@ export interface Transaction {
   siemPass: boolean;
   lstmScore: number;
   isActive: boolean; // true = part of the current investigation
+  // Present on live-polled transactions (siem_score / threat_score on the ES
+  // doc); absent on the bundled mock feed, which has no blended verdict.
+  siemScore?: number;
+  threatScore?: number;
 }
 
 export interface SIEMRule {
@@ -41,6 +45,7 @@ export interface Incident {
   timestamp: string;
   totalAmount: number;
   transactionCount: number;
+  location: string;
 }
 
 export interface KPIStats {
@@ -56,4 +61,7 @@ export interface HistoryEvent {
   lstm: number;
   hybrid: number;
   flagged: boolean;
+  // Present on live-derived history so the chart can label its one flagged
+  // point with the customer it actually belongs to, instead of a fixed id.
+  customerId?: string;
 }

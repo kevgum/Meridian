@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { X, MapPin, Clock, DollarSign, Brain, Zap } from 'lucide-react';
-import type { Incident } from '../types';
-import { FEED_TRANSACTIONS } from '../data/mockData';
+import type { Incident, Transaction } from '../types';
+import { formatWindow } from '../lib/formatWindow';
 
 interface Props {
   incident: Incident;
+  transactions: Transaction[];
   onClose: () => void;
 }
 
@@ -35,10 +36,14 @@ function SummaryCell({
   );
 }
 
-export default function InvestigateDrawer({ incident, onClose }: Props) {
+export default function InvestigateDrawer({ incident, transactions, onClose }: Props) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const activeTxns = FEED_TRANSACTIONS.filter((t) => t.isActive);
+  // Falls back to the isActive-flagged mock rows when the live feed hasn't
+  // (yet) surfaced this specific customer among its most recent transactions.
+  const matching = transactions.filter((t) => t.customerId === incident.customerId);
+  const activeTxns = matching.length > 0 ? matching : transactions.filter((t) => t.isActive);
+  const caseWindow = formatWindow(activeTxns);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -117,12 +122,12 @@ export default function InvestigateDrawer({ incident, onClose }: Props) {
             <SummaryCell
               icon={<MapPin size={13} aria-hidden="true" />}
               label="Location"
-              value="Darwin, NT"
+              value={incident.location || 'Unavailable'}
             />
             <SummaryCell
               icon={<Clock size={13} aria-hidden="true" />}
               label="Window"
-              value="75 min"
+              value={caseWindow}
             />
             <SummaryCell
               icon={<DollarSign size={13} aria-hidden="true" />}
@@ -234,16 +239,30 @@ export default function InvestigateDrawer({ incident, onClose }: Props) {
 
             <div className="note note--accent mt-3 px-4 py-3">
               <p className="text-micro font-semibold text-accent-text">
-                Raised by the model alone
+                {incident.triggerReason === 'LSTM_ALONE'
+                  ? 'Raised by the model alone'
+                  : 'Raised by the blended score'}
               </p>
               <p className="mt-2 text-micro leading-snug text-ink-2">
-                The blended score of{' '}
-                <span className="font-mono">{incident.threatScore.toFixed(2)}</span> sits below
-                the usual flag line of <span className="font-mono">0.70</span>. The behaviour
-                score alone —{' '}
-                <span className="font-mono">{incident.lstmScore.toFixed(2)}</span> — was high
-                enough to raise the case anyway. The system does not wait for the fixed rules
-                to agree when the model is this confident.
+                {incident.triggerReason === 'LSTM_ALONE' ? (
+                  <>
+                    The blended score of{' '}
+                    <span className="font-mono">{incident.threatScore.toFixed(2)}</span> sits below
+                    the usual flag line of <span className="font-mono">0.70</span>. The behaviour
+                    score alone —{' '}
+                    <span className="font-mono">{incident.lstmScore.toFixed(2)}</span> — was high
+                    enough to raise the case anyway. The system does not wait for the fixed rules
+                    to agree when the model is this confident.
+                  </>
+                ) : (
+                  <>
+                    The blended score of{' '}
+                    <span className="font-mono">{incident.threatScore.toFixed(2)}</span> crossed the{' '}
+                    <span className="font-mono">0.70</span> flag line on its own — behaviour weighted
+                    60%, security rules weighted 40%. Neither check alone was enough; together they
+                    were.
+                  </>
+                )}
               </p>
               <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-accent-edge pt-2 text-micro">
                 <div className="flex gap-2">

@@ -16,6 +16,10 @@ export const KPI_STATS: KPIStats = {
 // CUST-18656 — Darwin NT, 6 transactions, all SIEM rules PASS, LSTM = 0.74
 // ---------------------------------------------------------------------------
 
+// Evidence keys below match ElasticSIEMCorrelator's real output
+// (src/siem/rule_engine.py) exactly, snake_case included, so the same
+// formatter in DetectionPanel.tsx reads both this bundled fallback and a
+// live incident's siem_rules without a second code path.
 export const CUST18656_SIEM_RESULT: SIEMResult = {
   rules: [
     {
@@ -30,21 +34,21 @@ export const CUST18656_SIEM_RESULT: SIEMResult = {
       name: 'Impossible Geo-Velocity',
       triggered: false,
       severity: 'HIGH',
-      evidence: { velocityKmh: 0, note: 'All transactions in Darwin, NT' },
+      evidence: { velocity_kmh: 0, distance_km: 0, elapsed_hours: 0.25, threshold_kmh: 500 },
     },
     {
       ruleId: 'RULE_003',
       name: 'Off-Hours Transaction',
       triggered: false,
       severity: 'MEDIUM',
-      evidence: { localTime: '14:00', timezone: 'Australia/Darwin' },
+      evidence: { local_time: '14:00', timezone: 'Australia/Sydney', off_hours_window: 'before 08:00 or at/after 22:00' },
     },
     {
       ruleId: 'RULE_004',
       name: 'Watchlist Merchant',
       triggered: false,
       severity: 'HIGH',
-      evidence: { merchantId: 'M5732', note: 'Not in watchlist' },
+      evidence: { merchant_id: 'M5732', watchlist_size: 20 },
     },
   ],
   siemScore: 0.00,
@@ -64,6 +68,7 @@ export const CUST18656_INCIDENT: Incident = {
   timestamp: '2026-06-30T14:00:00+09:30',
   totalAmount: 665.20,
   transactionCount: 6,
+  location: 'Darwin, NT',
 };
 
 // ---------------------------------------------------------------------------

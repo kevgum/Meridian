@@ -12,6 +12,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!frontend/src/lib/
 lib64/
 parts/
 sdist/
@@ -69,3 +70,7 @@ frontend/.vercel/
 .agents/
 .claude/
 skills-lock.json
+
+# Kaggle API credentials — never commit
+kaggle.json
+.kaggle/

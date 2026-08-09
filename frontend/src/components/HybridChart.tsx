@@ -21,6 +21,14 @@ interface TooltipPayload {
   value: number;
 }
 
+interface TooltipProps {
+  active?: boolean;
+  payload?: TooltipPayload[];
+  label?: number;
+  flaggedStep?: number;
+  flaggedLabel?: string;
+}
+
 /** The token names the chart draws from. Nothing here is a literal colour. */
 const CHART_TOKENS = [
   '--color-chart-hybrid',
@@ -54,15 +62,7 @@ function useChartTokens(): Record<ChartToken, string> | null {
   return tokens;
 }
 
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: TooltipPayload[];
-  label?: number;
-}) {
+function ChartTooltip({ active, payload, label, flaggedStep, flaggedLabel }: TooltipProps) {
   if (!active || !payload?.length) return null;
 
   const read = (key: string) => payload.find((p) => p.dataKey === key)?.value;
@@ -86,9 +86,9 @@ function ChartTooltip({
           </div>
         )}
       </dl>
-      {label === 30 && (
+      {label !== undefined && label === flaggedStep && flaggedLabel && (
         <p className="mt-2 border-t border-rule-2 pt-2 text-micro font-semibold text-accent-text">
-          CUST-18656 — raised by the model
+          {flaggedLabel} — raised by the model
         </p>
       )}
     </div>
@@ -105,7 +105,11 @@ function ChartTooltip({
  */
 export default function HybridChart({ events }: Props) {
   const t = useChartTokens();
-  const flagged = events.find((e) => e.step === 30);
+  // The most recent flagged point, whichever step it lands on — the chart
+  // window shifts as new payments arrive, so nothing here is ever a fixed
+  // position.
+  const flagged = [...events].reverse().find((e) => e.flagged);
+  const flaggedLabel = flagged?.customerId;
 
   return (
     <section
@@ -167,7 +171,25 @@ export default function HybridChart({ events }: Props) {
                 tickFormatter={(v: number) => v.toFixed(1)}
               />
               <Tooltip
-                content={<ChartTooltip />}
+                content={(rechartsProps: unknown) => {
+                  // Recharts' own TooltipContentProps type is a wide generic
+                  // that doesn't structurally match our (much narrower) needs
+                  // here — go through `unknown` rather than fight its shape.
+                  const p = rechartsProps as {
+                    active?: boolean;
+                    label?: string | number;
+                    payload?: TooltipPayload[];
+                  };
+                  return (
+                    <ChartTooltip
+                      active={p.active}
+                      label={p.label === undefined ? undefined : Number(p.label)}
+                      payload={p.payload}
+                      flaggedStep={flagged?.step}
+                      flaggedLabel={flaggedLabel}
+                    />
+                  );
+                }}
                 cursor={{ stroke: t['--color-chart-axis'], strokeDasharray: '3 3' }}
               />
 
@@ -214,18 +236,22 @@ export default function HybridChart({ events }: Props) {
               {/* The one point worth naming outright. */}
               {flagged && (
                 <ReferenceDot
-                  x={30}
+                  x={flagged.step}
                   y={flagged.lstm}
                   r={4.5}
                   fill={t['--color-chart-hybrid']}
                   stroke={t['--color-paper']}
                   strokeWidth={2}
-                  label={{
-                    value: '18656',
-                    position: 'top',
-                    fill: t['--color-chart-hybrid'],
-                    fontSize: 10,
-                  }}
+                  label={
+                    flaggedLabel
+                      ? {
+                          value: flaggedLabel.replace('CUST-', ''),
+                          position: 'top',
+                          fill: t['--color-chart-hybrid'],
+                          fontSize: 10,
+                        }
+                      : undefined
+                  }
                 />
               )}
             </LineChart>
