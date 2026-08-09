@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from src.pipeline.pii_obfuscation import obfuscate_pii
-from src.pipeline.feature_engineering import engineer_features
+from src.pipeline.feature_engineering import DEFAULT_SCALER_PATH, engineer_features
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -63,8 +63,10 @@ def main():
     args = parser.parse_args()
 
     # Resolve data source
+    is_real_data = True
     if args.mock:
         df = generate_mock()
+        is_real_data = False
     elif args.csv:
         df = load_paysim(args.csv, sample=args.sample)
     elif os.path.exists(PAYSIM_CSV):
@@ -73,12 +75,21 @@ def main():
         logger.warning(f"PaySim CSV not found at {PAYSIM_CSV}. Using mock data.")
         logger.warning("To use real data: python -m src.pipeline.run_pipeline --csv <path>")
         df = generate_mock()
+        is_real_data = False
 
     logger.info("Obfuscating PII ...")
     df = obfuscate_pii(df, ['nameOrig', 'nameDest'])
 
+    # Persist the fitted scaler alongside the model. Without it, inference has no
+    # way to reproduce training's feature range and scores are wrong rather than
+    # absent -- see models/MODEL_CARD.md. Mock runs deliberately pass None: their
+    # min/max describe random noise and must never overwrite the real range.
+    scaler_path = DEFAULT_SCALER_PATH if is_real_data else None
+    if scaler_path is None:
+        logger.warning("Mock data - not writing a scaler (its range would be meaningless).")
+
     logger.info("Engineering features ...")
-    X, y = engineer_features(df)
+    X, y = engineer_features(df, scaler_path=scaler_path)
     logger.info(f"Features shape: {X.shape}  Target shape: {y.shape}")
 
     fraud_ratio = y.mean()

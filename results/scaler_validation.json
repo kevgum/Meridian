@@ -1,0 +1,36 @@
+{
+  "scaler_path": "/app/models/feature_scaler.json",
+  "sample_rows": 1999999,
+  "test_sequences": 299863,
+  "threshold": 0.92,
+  "model_card": {
+    "accuracy": 98.8578,
+    "false_positive_rate": 1.0969,
+    "precision": 6.9932,
+    "recall": 63.8243,
+    "true_positives": 247,
+    "false_positives": 3285
+  },
+  "measured": {
+    "accuracy": 98.58435352144146,
+    "false_positive_rate": 1.3727310368777466,
+    "precision": 5.7974335472044,
+    "recall": 65.37467700258398,
+    "true_positives": 253,
+    "false_positives": 4111
+  },
+  "confusion": {
+    "tp": 253,
+    "fp": 4111,
+    "tn": 295365,
+    "fn": 134
+  },
+  "class_separation": {
+    "roc_auc": 0.9666305389641296,
+    "fraud_mean": 0.8630499797950321,
+    "normal_mean": 0.1162241680194159,
+    "fraud_median": 0.9656202793121338,
+    "normal_median": 4.869532858720049e-06
+  },
+  "verified": false
+}

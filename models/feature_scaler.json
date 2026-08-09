@@ -1,0 +1,44 @@
+{
+  "feature_cols": [
+    "amount_delta",
+    "balance_utilisation_ratio",
+    "channel_type_encoded",
+    "time_of_day_flag",
+    "balance_drop_to_zero",
+    "amount_to_balance_ratio",
+    "transaction_frequency_1h",
+    "transaction_frequency_24h",
+    "cumulative_spend_ratio",
+    "dest_received_ratio",
+    "amount_zscore",
+    "step_norm"
+  ],
+  "data_min": [
+    -19305345.5625,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    1.0,
+    0.0,
+    -65949.5546875,
+    -0.7071148157119751,
+    0.001345895018376992
+  ],
+  "data_max": [
+    3191298.0700683594,
+    813160792064.0,
+    4.0,
+    1.0,
+    1.0,
+    69886726373376.0,
+    2.0,
+    2.0,
+    1.9999936819076538,
+    85415.6171875,
+    0.7071111798286438,
+    0.9999999986541049
+  ]
+}
