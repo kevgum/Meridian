@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { X, MapPin, Clock, DollarSign, Brain, Zap } from 'lucide-react';
 import type { Incident, Transaction } from '../types';
 import { formatWindow } from '../lib/formatWindow';
+import { customerTransactionsUrl, mapEsHitToTransaction } from '../hooks/useElasticPolling';
 
 interface Props {
   incident: Incident;
@@ -39,10 +41,45 @@ function SummaryCell({
 export default function InvestigateDrawer({ incident, transactions, onClose }: Props) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  // Falls back to the isActive-flagged mock rows when the live feed hasn't
-  // (yet) surfaced this specific customer among its most recent transactions.
+
+  // The customer's own transaction steps, fetched directly — the site-wide
+  // recent-16 feed (`transactions`) very often doesn't happen to include this
+  // specific customer. Falls back to filtering that shared feed, then to the
+  // isActive-flagged mock rows, when the scoped query hasn't resolved yet or
+  // ES isn't reachable (e.g. on Vercel with no cluster to reach at all).
+  const [customerTxns, setCustomerTxns] = useState<Transaction[] | null>(null);
+  const [loadingTxns, setLoadingTxns] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingTxns(true);
+    axios
+      .get(customerTransactionsUrl(incident.customerId), { timeout: 3_000 })
+      .then((res) => {
+        if (cancelled) return;
+        const hits: Record<string, unknown>[] = res.data?.hits?.hits ?? [];
+        // Oldest first, so the table reads as a timeline of what happened,
+        // matching the ascending order the risk-history chart already uses.
+        setCustomerTxns(hits.map(mapEsHitToTransaction).reverse());
+      })
+      .catch(() => {
+        if (!cancelled) setCustomerTxns(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTxns(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [incident.customerId]);
+
   const matching = transactions.filter((t) => t.customerId === incident.customerId);
-  const activeTxns = matching.length > 0 ? matching : transactions.filter((t) => t.isActive);
+  const activeTxns =
+    customerTxns && customerTxns.length > 0
+      ? customerTxns
+      : matching.length > 0
+        ? matching
+        : transactions.filter((t) => t.isActive);
   const caseWindow = formatWindow(activeTxns);
 
   useEffect(() => {
@@ -160,6 +197,13 @@ export default function InvestigateDrawer({ incident, transactions, onClose }: P
                 </tr>
               </thead>
               <tbody>
+                {activeTxns.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-3 text-center text-muted">
+                      {loadingTxns ? 'Loading transaction history…' : 'No transaction history found for this customer.'}
+                    </td>
+                  </tr>
+                )}
                 {activeTxns.map((tx) => (
                   <tr key={tx.id} className="border-b border-rule-2">
                     <td className="py-2 pr-2 font-mono whitespace-nowrap text-muted">
