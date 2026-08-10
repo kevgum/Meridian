@@ -9,9 +9,7 @@ interface Props {
 
 /**
  * Turns a rule's real evidence object (ElasticSIEMCorrelator.evaluate() —
- * src/siem/rule_engine.py) into one line of prose. One formatter for every
- * incident, live or the bundled fallback, because both now carry the same
- * evidence shape (see mockData.ts).
+ * src/siem/rule_engine.py) into one line of prose.
  */
 function formatRuleEvidence(ruleId: string, evidence: Record<string, unknown>): string {
   if (typeof evidence.error === 'string') return `Could not check — ${evidence.error}`;

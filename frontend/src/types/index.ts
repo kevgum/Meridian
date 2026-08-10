@@ -12,8 +12,8 @@ export interface Transaction {
   siemPass: boolean;
   lstmScore: number;
   isActive: boolean; // true = part of the current investigation
-  // Present on live-polled transactions (siem_score / threat_score on the ES
-  // doc); absent on the bundled mock feed, which has no blended verdict.
+  // Optional because the ES doc only carries a blended verdict once the
+  // hybrid scorer has run on it.
   siemScore?: number;
   threatScore?: number;
 }

@@ -17,16 +17,10 @@ interface MonitorAlert {
   location: string;
 }
 
-const MONITOR_ALERTS: MonitorAlert[] = [
-  { id: 'CUST-44209', channel: 'Online', ageMinutes: 140, title: 'Qantas charge', location: 'Sydney, NSW' },
-  { id: 'CUST-73940', channel: 'Card', ageMinutes: 370, title: 'Electronics purchase', location: 'Melbourne, VIC' },
-];
-
 /** MONITOR-tier alerts: transactions with a raised risk score that didn't
- * cross the 0.70 flag line — the queue's "worth a glance" tier. Falls back
- * to the two bundled examples above when the live feed has nothing at that
- * level right now, the same isLive-fallback pattern the rest of the console
- * uses rather than showing an empty queue at every quiet moment. */
+ * cross the 0.70 flag line — the queue's "worth a glance" tier. An empty
+ * result means genuinely nothing is at that level right now; the queue
+ * shows empty rather than substituting placeholder cases. */
 function deriveMonitorAlerts(transactions: Transaction[]): MonitorAlert[] {
   const now = Date.now();
   return transactions
@@ -120,10 +114,7 @@ export default function AlertQueue({ incident, transactions, onInvestigate, onTo
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('ALL');
   const [escalated, setEscalated] = useState(false);
 
-  const monitorAlerts = useMemo(() => {
-    const live = deriveMonitorAlerts(transactions);
-    return live.length > 0 ? live : MONITOR_ALERTS;
-  }, [transactions]);
+  const monitorAlerts = useMemo(() => deriveMonitorAlerts(transactions), [transactions]);
 
   const caseTxns = useMemo(
     () => transactions.filter((t) => t.customerId === incident.customerId),

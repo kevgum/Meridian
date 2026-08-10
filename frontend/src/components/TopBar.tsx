@@ -66,7 +66,7 @@ export default function TopBar({ stats, isLive }: Props) {
           title={
             isLive
               ? 'Connected to live Elasticsearch'
-              : 'Demo mode — reading bundled sample data'
+              : 'Not connected — no Elasticsearch cluster reachable'
           }
         >
           {isLive ? (
@@ -74,7 +74,7 @@ export default function TopBar({ stats, isLive }: Props) {
           ) : (
             <WifiOff size={11} aria-hidden="true" />
           )}
-          {isLive ? 'Live' : 'Demo'}
+          {isLive ? 'Live' : 'Offline'}
         </span>
 
         {/* Below 640px the bar carries identity and connection state only —

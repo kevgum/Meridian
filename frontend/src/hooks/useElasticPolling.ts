@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { FEED_TRANSACTIONS, CUST18656_INCIDENT, CUST18656_SIEM_RESULT, HISTORY_EVENTS, KPI_STATS } from '../data/mockData';
+import { KPI_STATS } from '../data/referenceData';
 import type { Transaction, Incident, SIEMResult, SIEMRule, HistoryEvent, KPIStats } from '../types';
 
 const POLL_INTERVAL_MS = 5_000;
 
 // In dev: Vite proxy forwards /api/* → http://localhost:9200/*
-// On Vercel: request will fail → graceful fallback to mock data
+// On Vercel: request will fail — isLive stays false and the panels sit on
+// their empty/loading placeholders. No bundled sample data is substituted;
+// see EMPTY_INCIDENT/EMPTY_SIEM_RESULT below.
 //
 // Incidents sort on `timestamp`, NOT `@timestamp`. Every incident the playbook
 // engine has ever written carries `timestamp`; none of the older ones carry
@@ -21,9 +23,7 @@ const ES_OPEN_INCIDENT_COUNT_URL =
   '/api/meridian-incidents-*/_count?q=status:OPEN';
 
 // Friendly names — the served rules only carry rule_id, triggered, severity
-// and evidence (src/siem/rule_engine.py). This is the one place that names
-// them, so both the live path and the bundled mock fallback read the same
-// four labels.
+// and evidence (src/siem/rule_engine.py). This is the one place that names them.
 const RULE_NAMES: Record<string, string> = {
   RULE_001: 'High-Value Transaction',
   RULE_002: 'Impossible Geo-Velocity',
@@ -43,7 +43,15 @@ function todayTransactionCountUrl(): string {
   return `/api/meridian-transactions-${yyyy}.${mm}.${dd}/_count`;
 }
 
-function mapEsHitToTransaction(hit: Record<string, unknown>): Transaction {
+/** A case's own transaction steps, not the site-wide recent-16 feed — the
+ * customer under investigation is very often not among the last 16
+ * transactions across every customer, which is why InvestigateDrawer needs
+ * its own scoped query rather than filtering the shared feed. */
+export function customerTransactionsUrl(customerId: string): string {
+  return `/api/meridian-transactions-*/_search?q=customer_id:"${encodeURIComponent(customerId)}"&sort=%40timestamp:desc&size=10`;
+}
+
+export function mapEsHitToTransaction(hit: Record<string, unknown>): Transaction {
   const src = (hit['_source'] as Record<string, unknown>) ?? {};
   return {
     id: String(hit['_id'] ?? ''),
@@ -128,6 +136,28 @@ function deriveHistory(transactions: Transaction[]): HistoryEvent[] {
   });
 }
 
+// Shown only until the first live poll resolves, or if a cluster genuinely
+// has zero OPEN incidents — an honest "nothing to review" state, not a
+// fabricated case. triggerReason 'NONE' and status 'CLOSED' are real values
+// in the Incident type, not placeholders invented for this.
+const EMPTY_INCIDENT: Incident = {
+  incidentId: '',
+  customerId: '—',
+  action: '—',
+  threatScore: 0,
+  lstmScore: 0,
+  siemScore: 0,
+  triggerReason: 'NONE',
+  severity: 'MEDIUM',
+  status: 'CLOSED',
+  timestamp: '',
+  totalAmount: 0,
+  transactionCount: 0,
+  location: '',
+};
+
+const EMPTY_SIEM_RESULT: SIEMResult = { rules: [], siemScore: 0, triggeredCount: 0 };
+
 interface PollingState {
   transactions: Transaction[];
   incident: Incident;
@@ -139,10 +169,10 @@ interface PollingState {
 
 export function useElasticPolling(): PollingState {
   const [state, setState] = useState<PollingState>({
-    transactions: FEED_TRANSACTIONS,
-    incident: CUST18656_INCIDENT,
-    siemResult: CUST18656_SIEM_RESULT,
-    history: HISTORY_EVENTS,
+    transactions: [],
+    incident: EMPTY_INCIDENT,
+    siemResult: EMPTY_SIEM_RESULT,
+    history: [],
     kpiStats: KPI_STATS,
     isLive: false,
   });
@@ -172,7 +202,8 @@ export function useElasticPolling(): PollingState {
 
     // Live means at least one query reached Elasticsearch and came back. Both
     // failing is the expected case on Vercel, where there is no cluster to
-    // reach — fall back to the bundled sample data without complaint.
+    // reach — the panels stay on their last-known-good state (or the empty
+    // placeholder, on the very first poll) rather than showing fake data.
     const reachedCluster =
       txResult.status === 'fulfilled' || incResult.status === 'fulfilled';
 
