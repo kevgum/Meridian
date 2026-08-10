@@ -94,3 +94,41 @@ FPR of 1.10% still exceeds the ≤0.50% target. Further threshold increases redu
 | Final metrics | `results/final_metrics.json` |
 | Model card | `models/MODEL_CARD.md` |
 | ONNX export | `models/serving/lstm_v1/lstm_fraud_detector.onnx` (Drive only — gitignored) |
+
+---
+
+## 2026-08-10 — 13-feature geo-velocity retrain, then a real fix
+
+Two retrains happened the same day, superseding everything above.
+
+**Retrain 1 — added feature 13 (`geo_velocity_kmh`, synthetic).** 35 epochs,
+threshold re-swept to 0.925. Result was *worse* than the Day 5 checkpoint on
+every metric (98.55% acc / 1.40% FPR / 61.5% recall vs. 98.86% / 1.10% /
+63.8%) — disclosed as a regression at the time, not hidden.
+
+**Root cause found while building a fraud demo script.** A hand-built
+textbook fraud case (full balance wipeout, `balance_drop_to_zero=1`) scored
+the LSTM at ~0.0000 — clearly wrong. Investigation traced it to
+`amount_to_balance_ratio` and `balance_utilisation_ratio`
+(`src/pipeline/feature_engineering.py`), both dividing by
+`oldbalanceOrg + 1e-6`. `oldbalanceOrg == 0` is common in PaySim, not a rare
+row, and one large transaction against a zero-balance origin fit the
+training scaler's max at **69.8 trillion** — MinMax-compressing every
+ordinary value (including genuine fraud at ≈1.0) down to ≈0.
+
+**Retrain 2 — same 13 features, ratios clipped to `[0, 5]` before scaling.**
+Calibration alone (5 epochs, 20% subset) jumped to 99.29% val_acc, vs. a much
+weaker curve on retrain 1's features. Full 35-epoch run: best val_acc
+89.40% → **99.75%**. Threshold re-swept to **0.90** — the lowest value
+tested — already clears both targets:
+
+| Retrain | Threshold | Accuracy | FPR | Recall |
+|---|---|---|---|---|
+| Day 5 (12-feature) | 0.92 | 98.86% | 1.10% | 63.8% |
+| 2026-08-10, attempt 1 (13-feature, broken ratios) | 0.925 | 98.55% | 1.40% | 61.5% |
+| 2026-08-10, attempt 2 (13-feature, fixed ratios) | **0.90** | **99.96%** | **0.034%** | **93.5%** |
+
+First checkpoint to meet both the ≥98.55% accuracy and ≤0.50% FPR targets
+simultaneously. Full writeup: `models/MODEL_CARD.md` Known Limitations
+items 5–6. `dest_received_ratio` has the same `+1e-6` pattern with a much
+milder observed range — left unclipped, worth the same scrutiny later.

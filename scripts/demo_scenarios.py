@@ -70,14 +70,16 @@ SYDNEY = (-33.8688, 151.2093)
 DARWIN = (-12.4634, 130.8456)
 LONDON = (51.5074, -0.1278)
 
-# Feature windows (5 transactions x 12 features) fed to the live LSTM model.
+# Feature windows (5 transactions x 13 features) fed to the live LSTM model.
 # These are the canonical tensors the acceptance tests use: the model scores the
-# fraud window well above the clean window. Feature order (from CLAUDE.md):
-#   amount_delta, balance_utilisation, channel, time_of_day, geo_velocity,
-#   merchant_category_code (ENCODED, not raw MCC), freq_1h, freq_24h,
-#   cumulative_spend, beneficiary_risk, amount_zscore, session_entropy
-_CLEAN_ROW = [0.02, 0.05, 0.0, 0.0, 0.0, 3.0, 1.0, 2.0, 0.08, 0.05, 0.3, 0.10]
-_FRAUD_ROW = [2.5, 0.97, 2.0, 1.0, 1.0, 0.0, 6.0, 8.0, 0.95, 0.90, 3.5, 0.85]
+# fraud window well above the clean window. Feature order (FEATURE_COLS,
+# src/pipeline/feature_engineering.py):
+#   amount_delta, balance_utilisation_ratio, channel_type_encoded,
+#   time_of_day_flag, balance_drop_to_zero, amount_to_balance_ratio,
+#   transaction_frequency_1h, transaction_frequency_24h, cumulative_spend_ratio,
+#   dest_received_ratio, amount_zscore, step_norm, geo_velocity_kmh (SYNTHETIC)
+_CLEAN_ROW = [0.02, 0.05, 0.0, 0.0, 0.0, 3.0, 1.0, 2.0, 0.08, 0.05, 0.3, 0.10, 0.0]
+_FRAUD_ROW = [2.5, 0.97, 2.0, 1.0, 1.0, 0.0, 6.0, 8.0, 0.95, 0.90, 3.5, 0.85, 0.90]
 CALM_WINDOW = [_CLEAN_ROW] * 5
 ESCALATING_WINDOW = [_FRAUD_ROW] * 5
 

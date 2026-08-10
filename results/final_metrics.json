@@ -1,19 +1,19 @@
 {
-  "model": "LSTMFraudDetector v1",
-  "threshold": 0.92,
+  "model": "LSTMFraudDetector v1 (13-feature, geo-velocity)",
+  "threshold": 0.9,
   "test_samples": 299863,
   "fraud_samples": 387,
-  "detection_accuracy": 0.988578,
-  "false_positive_rate": 0.010969,
-  "precision": 0.069932,
-  "recall": 0.638243,
-  "f1_score": 0.126053,
-  "true_positives": 247,
-  "true_negatives": 296191,
-  "false_positives": 3285,
-  "false_negatives": 140,
+  "detection_accuracy": 0.999576,
+  "false_positive_rate": 0.000341,
+  "precision": 0.780172,
+  "recall": 0.935401,
+  "f1_score": 0.850764,
+  "true_positives": 362,
+  "true_negatives": 299374,
+  "false_positives": 102,
+  "false_negatives": 25,
   "targets_met": {
     "accuracy_gte_9855": true,
-    "fpr_lte_050_pct": false
+    "fpr_lte_050_pct": true
   }
 }

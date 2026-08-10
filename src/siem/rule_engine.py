@@ -93,7 +93,7 @@ class ElasticSIEMCorrelator:
         Args:
             event: Normalised transaction dict produced by the feature pipeline
                    or Logstash, containing raw transaction fields alongside the
-                   12 engineered LSTM features.
+                   13 engineered LSTM features.
 
         Returns:
             Dict containing:

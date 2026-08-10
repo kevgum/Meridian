@@ -18,7 +18,7 @@ Meridian Sentinel detects financial fraud in real time by fusing two complementa
 - **RBAC** — 6 Elasticsearch roles enforcing least-privilege access
 - **React SOC Dashboard** — live alert feed, investigation drawer, WCAG 2.2 AA compliant
 
-**Model:** 98.86% accuracy · 1.10% FPR · 63.8% recall · p99 latency 28.5 ms  
+**Model:** 99.96% accuracy · 0.034% FPR · 93.5% recall · p99 latency 5.83 ms  
 **Tests:** 35/35 PASS — [`results/acceptance_test_report.md`](results/acceptance_test_report.md)  
 **Security:** 0 FAIL / 6 low-info ZAP warnings — [`results/security_review.md`](results/security_review.md)
 

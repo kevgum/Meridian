@@ -12,7 +12,7 @@ class LSTMInferenceClient:
 
     Usage:
         client = LSTMInferenceClient("http://localhost:8080")
-        prob = client.predict(sequence)   # sequence: [5, 12] numpy array
+        prob = client.predict(sequence)   # sequence: [5, 13] numpy array
     """
 
     def __init__(self, base_url: str = "http://localhost:8080", timeout: int = 5):
@@ -33,7 +33,7 @@ class LSTMInferenceClient:
         Sends a single transaction sequence and returns anomaly probability.
 
         Args:
-            sequence: numpy array of shape [5, 12] or [1, 5, 12]
+            sequence: numpy array of shape [5, 13] or [1, 5, 13]
 
         Returns:
             float: anomaly probability in [0.0, 1.0]
@@ -56,7 +56,7 @@ class LSTMInferenceClient:
         Sends a batch of sequences and returns a list of anomaly probabilities.
 
         Args:
-            sequences: numpy array of shape [batch_size, 5, 12]
+            sequences: numpy array of shape [batch_size, 5, 13]
 
         Returns:
             list[float]: anomaly probabilities for each sequence

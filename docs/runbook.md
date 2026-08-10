@@ -97,7 +97,7 @@ The LSTM is trained in Google Colab (GPU required), not locally. Full walkthroug
 **Summary:**
 1. Open `notebooks/02_lstm_model.ipynb` in Colab, set runtime to GPU (T4)
 2. Run the full 35-epoch training run with `pos_weight=1.0` and `WeightedRandomSampler` — **do not** revert to a fixed `pos_weight=773`; this previously caused the model to collapse to predicting "not fraud" for everything (see [training-notes.md](training-notes.md))
-3. Run `03_evaluation.ipynb` — cell 16 sweeps thresholds and auto-selects the lowest one meeting the 98.55% accuracy target (currently `0.92`), then exports to ONNX
+3. Run `03_evaluation.ipynb` (or, for local/headless retraining, `scripts/evaluate_lstm.py`) — sweeps thresholds and auto-selects the lowest one meeting the 98.55% accuracy target (currently `0.90`), then exports to ONNX
 4. Download and place locally:
    - `models/lstm_checkpoint_best.pt`
    - `models/lstm_final.pt`
@@ -109,7 +109,7 @@ The LSTM is trained in Google Colab (GPU required), not locally. Full walkthroug
    rm models/serving/lstm_v1/lstm_fraud_detector.onnx
    docker compose restart lstm-serving
    ```
-6. Re-run the acceptance suite before promoting — confirm accuracy ≥ 98.55% target (current: 98.86%) and check FPR against the ≤ 0.50% target (current: 1.10% — improved but not met) per [models/MODEL_CARD.md](../models/MODEL_CARD.md). If metrics regress, do not promote — revert to the previous `lstm_checkpoint_best.pt`.
+6. Re-run the acceptance suite before promoting — confirm accuracy ≥ 98.55% target (current: 99.96%) and check FPR against the ≤ 0.50% target (current: 0.034% — met) per [models/MODEL_CARD.md](../models/MODEL_CARD.md). If metrics regress, do not promote — revert to the previous `lstm_checkpoint_best.pt`.
 
 ---
 

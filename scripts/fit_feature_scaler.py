@@ -49,6 +49,7 @@ from src.pipeline.feature_engineering import (  # noqa: E402
     FEATURE_COLS,
     compute_feature_matrix,
     save_scaler,
+    synthesize_geo_velocity,
 )
 from src.pipeline.pii_obfuscation import obfuscate_pii  # noqa: E402
 from src.pipeline.run_pipeline import PAYSIM_CSV, load_paysim  # noqa: E402
@@ -59,7 +60,7 @@ TRAINING_SAMPLE_ROWS = 2_000_000
 
 
 def compute_raw_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute the 12 unscaled features, mirroring ``compute_feature_matrix``.
+    """Compute the 13 unscaled features, mirroring ``compute_feature_matrix``.
 
     Every expression below is an exact algebraic equivalent of its counterpart in
     ``src.pipeline.feature_engineering``; the differences are pandas execution
@@ -132,6 +133,11 @@ def compute_raw_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # 12. step_norm
     df['step_norm'] = df['step'] / (df['step'].max() + 1e-6)
+
+    # 13. geo_velocity_kmh -- SYNTHETIC, computed by the one shared function
+    # (imported, not reimplemented) so this fast path can never drift from
+    # compute_feature_matrix's version of it. See its docstring for why.
+    df['geo_velocity_kmh'] = synthesize_geo_velocity(df)
 
     return df
 

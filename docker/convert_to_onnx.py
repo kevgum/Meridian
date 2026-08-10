@@ -25,7 +25,7 @@ sys.path.insert(0, "/app")
 import torch.nn as nn
 
 class LSTMFraudDetector(nn.Module):
-    def __init__(self, input_size=12, hidden_size_1=128, hidden_size_2=64, dropout=0.30):
+    def __init__(self, input_size=13, hidden_size_1=128, hidden_size_2=64, dropout=0.30):
         super().__init__()
         self.lstm1 = nn.LSTM(input_size, hidden_size_1, batch_first=True)
         self.dropout = nn.Dropout(dropout)
@@ -53,7 +53,7 @@ model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location="cpu"))
 model.eval()
 
 os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-dummy = torch.zeros(1, 5, 12)
+dummy = torch.zeros(1, 5, m["input_features"])
 
 torch.onnx.export(
     model, dummy, MODEL_PATH,

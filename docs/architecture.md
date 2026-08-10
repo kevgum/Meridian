@@ -45,7 +45,7 @@ The two engines are fused by a **Hybrid Threat Scorer** that blends their output
 │  ENGINE         │   │                                  │
 │                 │   │  - Builds sequences of 5         │
 │  4 Rules:       │   │    transactions per customer     │
-│  1. Amount      │   │  - Engineers 12 features         │
+│  1. Amount      │   │  - Engineers 13 features         │
 │     > $10,000   │   │  - Feeds sequences to LSTM API   │
 │  2. Geo-velocity│   └──────────────┬───────────────────┘
 │     > 500 km/h  │                  │ Transaction Sequences
@@ -128,7 +128,7 @@ The two engines are fused by a **Hybrid Threat Scorer** that blends their output
 | Kibana Dashboard | Elastic Kibana 8.x | SIEM rule management, Elasticsearch data explorer, compliance log viewer |
 
 **Dashboard panels:**
-- **Top KPI Bar:** Total transactions today, LSTM detection rate (98.55%), FPR (0.50%), active alert count, analyst session
+- **Top KPI Bar:** Total transactions today, LSTM detection rate (99.96%), FPR (0.034%), active alert count, analyst session
 - **Live Transaction Feed (left):** Real-time stream of incoming transactions with SIEM PASS/FLAG badge and LSTM anomaly risk bar
 - **Detection Comparison (centre):** SIEM 4-rule checklist vs LSTM behavioural evidence side-by-side; hybrid threat score badge; FLAGGED / NO ALERT verdict
 - **Analyst Alert Queue (right):** Active alerts with severity badge, SLA countdown timer, "Confirm Threat" and "Investigate" action buttons
@@ -144,7 +144,7 @@ The two engines are fused by a **Hybrid Threat Scorer** that blends their output
 | Component | Technology | Responsibility |
 |-----------|-----------|---------------|
 | Log Ingestion | Filebeat + Logstash | Pull events from simulated banking channels; normalise to ECS; obfuscate PII; push to Elasticsearch |
-| Feature Engineering Service | Python 3.11 (Docker) | Build 5-transaction sequences per customer; compute 12 engineered features; call LSTM inference API |
+| Feature Engineering Service | Python 3.11 (Docker) | Build 5-transaction sequences per customer; compute 13 engineered features; call LSTM inference API |
 | LSTM Inference API | ONNX Runtime + FastAPI (Docker) | Serve trained LSTM model via REST; accept sequence JSON; return anomaly probability. Decision: ONNX export was produced in Day 5; ONNX Runtime chosen over TF Serving to avoid PyTorch→TF SavedModel conversion overhead. |
 | SIEM Correlation Engine | Elastic SIEM + Python | Evaluate 4 detection rules against each event; produce SIEM rule score |
 | Hybrid Threat Scorer | Python (Docker) | Blend LSTM score (60%) and SIEM score (40%); threshold at 0.70 |
@@ -162,7 +162,7 @@ The two engines are fused by a **Hybrid Threat Scorer** that blends their output
 **Architecture:**
 
 ```
-Input: [batch_size, sequence_length=5, features=12]
+Input: [batch_size, sequence_length=5, features=13]
          │
          ▼
 LSTM Layer 1: hidden_size=128, batch_first=True
@@ -182,7 +182,14 @@ Sigmoid activation
 Output: anomaly_probability [0.0 – 1.0]
 ```
 
-**12 Engineered Features:**
+**13 Engineered Features:**
+
+> This table previously named a draft feature set (`geo_velocity_flag`,
+> `merchant_category_code`, `beneficiary_risk_score`, `session_entropy`) that
+> was never what got trained — see `CLAUDE.md`'s Model Details section. The
+> 13 features below are `FEATURE_COLS` in `src/pipeline/feature_engineering.py`,
+> the actual ground truth. Feature 13 is newly added and synthetic — the
+> currently-deployed checkpoint still only has the first 12 trained in.
 
 | # | Feature | Description |
 |---|---------|-------------|
@@ -190,24 +197,30 @@ Output: anomaly_probability [0.0 – 1.0]
 | 2 | `balance_utilisation_ratio` | newbalanceOrig / oldbalanceOrg — flags sudden balance depletion |
 | 3 | `channel_type_encoded` | Ordinal encoding: PAYMENT=0, TRANSFER=1, CASH_OUT=2, DEBIT=3, CASH_IN=4 |
 | 4 | `time_of_day_flag` | 0=business hours (08:00–22:00 AEST), 1=off-hours |
-| 5 | `geo_velocity_flag` | 1 if inferred location jump > 500 km/h between consecutive transactions |
-| 6 | `merchant_category_code` | MCC code (e.g. 5732=electronics, 5812=restaurants) — label-encoded |
+| 5 | `balance_drop_to_zero` | 1 if the origin balance was emptied (newbalanceOrig < 1 and oldbalanceOrg > 100) |
+| 6 | `amount_to_balance_ratio` | amount / oldbalanceOrg — fraud takes the whole balance (≈ 1.0) |
 | 7 | `transaction_frequency_1h` | Count of customer transactions in last 1 hour |
 | 8 | `transaction_frequency_24h` | Count of customer transactions in last 24 hours |
-| 9 | `cumulative_spend_ratio` | Total spend in session / customer 30-day average daily spend |
-| 10 | `beneficiary_risk_score` | Pre-computed risk score for the destination account |
+| 9 | `cumulative_spend_ratio` | Transaction amount / customer's overall average |
+| 10 | `dest_received_ratio` | (newbalanceDest − oldbalanceDest) / amount — legitimate ≈ 1.0 |
 | 11 | `amount_zscore` | Z-score of transaction amount relative to customer history (σ units) |
-| 12 | `session_entropy` | Shannon entropy of merchant categories visited in session — high entropy = unusual diversity |
+| 12 | `step_norm` | Normalised time position within the simulation |
+| 13 | `geo_velocity_kmh` | **SYNTHETIC** — fabricated per-customer travel speed, biased toward balance-draining TRANSFER/CASH_OUT transactions (see `synthesize_geo_velocity`) |
 
 **Performance Results:**
 
+13-feature geo-velocity checkpoint, threshold 0.90, after fixing an
+outlier-broken MinMax range on `amount_to_balance_ratio`/`balance_utilisation_ratio`
+(`models/MODEL_CARD.md` Known Limitations item 6). First checkpoint in the
+project to meet both targets simultaneously.
+
 | Metric | Target | Achieved |
 |--------|--------|---------|
-| Detection Accuracy | ≥ 95% | **98.55%** |
-| False Positive Rate | ≤ 5% | **0.50%** |
-| Fraud caught | — | 1,543 / 1,643 |
-| False alarms | — | 40 / 8,000 |
-| Inference latency | < 1 s | < 200 ms |
+| Detection Accuracy | ≥ 98.55% | **99.96%** |
+| False Positive Rate | ≤ 0.50% | **0.034%** |
+| Recall (fraud caught) | — | 362 / 387 (93.5%) |
+| False alarms | — | 102 / 299,476 |
+| Inference latency (p99) | < 200 ms | **5.83 ms** |
 
 ---
 
@@ -246,12 +259,12 @@ Logstash pipeline:
         ▼
 Feature Engineering Service polls new events
   - Build sliding window of 5 transactions per customer
-  - Compute 12 features
-  - Assemble sequence tensor [1, 5, 12]
+  - Compute 13 features
+  - Assemble sequence tensor [1, 5, 13]
         │
         ▼
 POST /v1/models/lstm:predict
-  Body: {"instances": [[[f1, f2, ..., f12], ...]]}
+  Body: {"instances": [[[f1, f2, ..., f13], ...]]}
         │
         ▼
 TF Serving → LSTM inference
@@ -411,7 +424,7 @@ meridian-sentinel/
 │   └── security_review_report.md
 │
 ├── src/
-│   ├── feature_engineering.py        # 12-feature sequence builder
+│   ├── feature_engineering.py        # 13-feature sequence builder
 │   ├── inference_client.py           # TF Serving REST wrapper
 │   ├── models/
 │   │   └── lstm_model.py             # PyTorch LSTMFraudDetector

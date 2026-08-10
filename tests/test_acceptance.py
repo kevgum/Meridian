@@ -60,7 +60,7 @@ _A11Y_AUDIT = _ROOT / "docs" / "accessibility-audit.md"
 
 def _load_model() -> LSTMFraudDetector:
     """Load the best checkpoint in eval mode."""
-    model = LSTMFraudDetector(input_size=12, hidden_size_1=128, hidden_size_2=64, dropout=0.30)
+    model = LSTMFraudDetector(input_size=13, hidden_size_1=128, hidden_size_2=64, dropout=0.30)
     state = torch.load(_CHECKPOINT, map_location="cpu", weights_only=True)
     model.load_state_dict(state)
     model.eval()
@@ -69,36 +69,37 @@ def _load_model() -> LSTMFraudDetector:
 
 def _fraud_tensor() -> torch.Tensor:
     """
-    Feature tensor representing high-confidence fraud (shape [1, 5, 12]).
+    Feature tensor representing high-confidence fraud (shape [1, 5, 13]).
 
-    Feature order (from CLAUDE.md):
+    Feature order (FEATURE_COLS, src/pipeline/feature_engineering.py):
       0  amount_delta              — large positive deviation from average
       1  balance_utilisation_ratio — near-full balance drain
       2  channel_type_encoded      — CASH_OUT = 2 (highest PaySim fraud signal)
       3  time_of_day_flag          — 1 = off-hours (before 08:00 or after 22:00)
-      4  geo_velocity_flag         — 1 = location jump > 500 km/h
-      5  merchant_category_code    — 0 (encoded watchlist MCC)
+      4  balance_drop_to_zero      — 1 = origin balance wiped to ~0
+      5  amount_to_balance_ratio   — 0.0 (unused by this fixture's signal)
       6  transaction_frequency_1h  — 6 transactions in 1 hour
       7  transaction_frequency_24h — 8 transactions in 24 hours
       8  cumulative_spend_ratio    — 0.95 (near account limit)
-      9  beneficiary_risk_score    — 0.90 (high-risk recipient)
+      9  dest_received_ratio       — 0.90 (destination balance doesn't match)
      10  amount_zscore             — 3.5 standard deviations above mean
-     11  session_entropy           — 0.85 (erratic session behaviour)
+     11  step_norm                 — 0.85 (late in the simulated timeline)
+     12  geo_velocity_kmh          — SYNTHETIC, elevated (see synthesize_geo_velocity)
     """
-    row = [2.5, 0.97, 2.0, 1.0, 1.0, 0.0, 6.0, 8.0, 0.95, 0.90, 3.5, 0.85]
+    row = [2.5, 0.97, 2.0, 1.0, 1.0, 0.0, 6.0, 8.0, 0.95, 0.90, 3.5, 0.85, 0.90]
     # 5-transaction sliding window — all five steps show high fraud signals
-    tensor = torch.tensor([row] * 5, dtype=torch.float32)  # [5, 12]
-    return tensor.unsqueeze(0)  # [1, 5, 12]
+    tensor = torch.tensor([row] * 5, dtype=torch.float32)  # [5, 13]
+    return tensor.unsqueeze(0)  # [1, 5, 13]
 
 
 def _clean_tensor() -> torch.Tensor:
     """
-    Feature tensor representing a normal low-risk transaction (shape [1, 5, 12]).
+    Feature tensor representing a normal low-risk transaction (shape [1, 5, 13]).
 
     All signals at baseline: small amounts, PAYMENT channel, business hours,
     no geo-velocity, no risk indicators.
     """
-    row = [0.02, 0.05, 0.0, 0.0, 0.0, 3.0, 1.0, 2.0, 0.08, 0.05, 0.3, 0.10]
+    row = [0.02, 0.05, 0.0, 0.0, 0.0, 3.0, 1.0, 2.0, 0.08, 0.05, 0.3, 0.10, 0.0]
     tensor = torch.tensor([row] * 5, dtype=torch.float32)
     return tensor.unsqueeze(0)
 
@@ -606,7 +607,7 @@ class TestAT10_RetrainingPipeline:
     N_SAMPLES = 300
     N_EPOCHS = 1
     SEQ_LEN = 5
-    N_FEATURES = 12
+    N_FEATURES = 13
 
     @pytest.fixture(scope="class")
     def synthetic_data(self) -> tuple[torch.Tensor, torch.Tensor]:
@@ -682,7 +683,7 @@ class TestAT10_RetrainingPipeline:
 
             # Reload and verify inference works
             reloaded = LSTMFraudDetector(
-                input_size=12, hidden_size_1=128, hidden_size_2=64, dropout=0.30
+                input_size=13, hidden_size_1=128, hidden_size_2=64, dropout=0.30
             )
             state = torch.load(tmp_path, map_location="cpu", weights_only=True)
             reloaded.load_state_dict(state)

@@ -85,7 +85,7 @@ def build_sequences_loop(X_scaled: np.ndarray, df: pd.DataFrame) -> Tuple[np.nda
         df: The sorted frame the rows came from.
 
     Returns:
-        Sequences of shape [n, SEQ_LEN, 12] and their labels.
+        Sequences of shape [n, SEQ_LEN, len(FEATURE_COLS)] and their labels.
     """
     X_seq, y_seq = [], []
     for _, group in df.groupby('nameOrig'):
@@ -96,7 +96,7 @@ def build_sequences_loop(X_scaled: np.ndarray, df: pd.DataFrame) -> Tuple[np.nda
                 X_seq.append(x_group[i:i + SEQ_LEN])
                 y_seq.append(y_group[i + SEQ_LEN - 1])
         else:
-            pad_x = np.zeros((SEQ_LEN - len(x_group), 12))
+            pad_x = np.zeros((SEQ_LEN - len(x_group), len(FEATURE_COLS)))
             X_seq.append(np.vstack([pad_x, x_group]))
             y_seq.append(y_group[-1])
     return np.array(X_seq), np.array(y_seq)
@@ -120,7 +120,7 @@ def build_sequences_fast(X_scaled: np.ndarray, df: pd.DataFrame) -> Tuple[np.nda
         df: The sorted frame the rows came from.
 
     Returns:
-        Sequences of shape [n, SEQ_LEN, 12] and their labels.
+        Sequences of shape [n, SEQ_LEN, len(FEATURE_COLS)] and their labels.
     """
     codes, _ = pd.factorize(df['nameOrig'], sort=False)
     n_groups = int(codes.max()) + 1
@@ -182,13 +182,13 @@ def score(X: np.ndarray, batch: int = 8192) -> np.ndarray:
     """Run sequences through the trained checkpoint and return probabilities.
 
     Args:
-        X: Sequences of shape [n, SEQ_LEN, 12].
+        X: Sequences of shape [n, SEQ_LEN, len(FEATURE_COLS)].
         batch: Rows per forward pass.
 
     Returns:
         Sigmoid probabilities of shape [n].
     """
-    model = LSTMFraudDetector()
+    model = LSTMFraudDetector(input_size=len(FEATURE_COLS))
     state = torch.load(CHECKPOINT, map_location='cpu', weights_only=False)
     if isinstance(state, dict) and 'model_state_dict' in state:
         state = state['model_state_dict']

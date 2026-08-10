@@ -12,22 +12,130 @@ logger = logging.getLogger(__name__)
 # Where the fitted scaler lives. Training writes it; inference reads it.
 DEFAULT_SCALER_PATH = Path(__file__).resolve().parents[2] / "models" / "feature_scaler.json"
 
-# The 12 features, in the exact order the model's input tensor expects.
+# The 13 features, in the exact order the model's input tensor expects.
 #
 # NOTE: this list is the ground truth. An older draft of the feature set — with
 # geo_velocity_flag, merchant_category_code, beneficiary_risk_score and
 # session_entropy at positions 5, 6, 10 and 12 — was never what got trained.
 # Anything constructing a tensor by hand must follow the names below, or four of
-# the twelve inputs carry the wrong meaning and the model's output is noise.
+# the twelve original inputs carry the wrong meaning and the model's output is
+# noise. `geo_velocity_kmh` (position 13) is unrelated to that abandoned draft
+# — see its docstring on `synthesize_geo_velocity` below: it is a deliberately
+# fabricated feature, since PaySim carries no real location data at all.
 FEATURE_COLS = [
     'amount_delta', 'balance_utilisation_ratio', 'channel_type_encoded',
     'time_of_day_flag', 'balance_drop_to_zero', 'amount_to_balance_ratio',
     'transaction_frequency_1h', 'transaction_frequency_24h',
     'cumulative_spend_ratio', 'dest_received_ratio', 'amount_zscore',
-    'step_norm'
+    'step_norm', 'geo_velocity_kmh'
 ]
 
 SEQ_LEN = 5
+
+# Fixed city coordinates used to synthesize a per-customer "home" location.
+# Sydney-centric AU cities plus two international ones, so a "jump" between
+# them produces a plausible-looking but entirely fabricated impossible-travel
+# signal. See `synthesize_geo_velocity`.
+_GEO_CITIES = [
+    ("Sydney", -33.8688, 151.2093),
+    ("Melbourne", -37.8136, 144.9631),
+    ("Brisbane", -27.4698, 153.0251),
+    ("Perth", -31.9505, 115.8605),
+    ("Adelaide", -34.9285, 138.6007),
+    ("Darwin", -12.4634, 130.8456),
+    ("London", 51.5074, -0.1278),
+    ("Singapore", 1.3521, 103.8198),
+]
+_GEO_LATS = np.array([c[1] for c in _GEO_CITIES])
+_GEO_LONS = np.array([c[2] for c in _GEO_CITIES])
+_N_CITIES = len(_GEO_CITIES)
+_EARTH_RADIUS_KM = 6371.0
+
+
+def synthesize_geo_velocity(df: pd.DataFrame) -> np.ndarray:
+    """Fabricate a per-transaction geo-velocity (km/h) feature.
+
+    SYNTHETIC. PaySim (the real training data) carries no location columns at
+    all — only ``step, type, amount, nameOrig, oldbalanceOrg, newbalanceOrig,
+    nameDest, oldbalanceDest, newbalanceDest, isFraud, isFlaggedFraud``. There
+    is no real per-transaction geography to learn from. This manufactures one
+    so "impossible travel" can be *learned* by the LSTM rather than only
+    checked live by SIEM Rule 2 (``_rule_geo_velocity`` in
+    ``src/siem/rule_engine.py``), whose Haversine formula this mirrors.
+
+    Every customer (``nameOrig``) gets a deterministic "home" city, and each
+    transaction has a small, hashed chance of "jumping" to a different one.
+    That jump probability is deliberately biased toward transactions that
+    already look risky by PaySim's own real fraud signature — ``TRANSFER``/
+    ``CASH_OUT`` channel draining most of the origin balance, the same
+    real-world pattern ``balance_drop_to_zero`` and ``amount_to_balance_ratio``
+    already capture — rather than reading the ``isFraud`` label directly. That
+    distinction matters: a feature computed from the true label could never be
+    reproduced at serving time, when the label is exactly what's being
+    predicted. Biasing on an observable proxy instead keeps this feature
+    computable identically in training and at live inference, while still
+    ending up correlated with ``isFraud`` in the training data — genuine,
+    deployable signal, just built from a fabricated map rather than real GPS.
+
+    All hashing uses ``pandas.util.hash_array`` — vectorised and stable across
+    runs and process restarts, unlike Python's randomised built-in ``hash()``.
+    This keeps the feature deterministic and order-invariant, the same
+    requirement the PII obfuscation step already relies on.
+
+    Args:
+        df: Rows already sorted by ``['nameOrig', 'step']`` with a 0-based
+            positional index — the same precondition every other feature in
+            this module relies on.
+
+    Returns:
+        1-D array of length ``len(df)``: synthetic geo-velocity in km/h
+        between each transaction and the previous one for the same customer
+        (0.0 for a customer's first transaction, which has no "previous").
+    """
+    name_orig = df['nameOrig'].astype(str)
+    step = df['step'].to_numpy(dtype=float)
+
+    home_hash = pd.util.hash_array(name_orig.to_numpy(dtype=object))
+    home_idx = (home_hash % _N_CITIES).astype(np.int64)
+
+    # Observable-at-inference proxy for "looks risky" — never the isFraud
+    # label itself. See the leakage note in the docstring above.
+    balance_drain_ratio = df['amount'] / (df['oldbalanceOrg'] + 1e-6)
+    looks_risky = df['type'].isin(['TRANSFER', 'CASH_OUT']) & (balance_drain_ratio > 0.90)
+    jump_prob = np.where(looks_risky, 0.70, 0.02)
+
+    jump_key = (name_orig + '|' + df['step'].astype(str)).to_numpy(dtype=object)
+    jump_roll = (pd.util.hash_array(jump_key) % 10_000) / 10_000.0
+    is_jump = jump_roll < jump_prob
+
+    # Deterministic "other" city for a jump: offset the home index by a second
+    # stable hash (1..N-1) so a jump never lands back on the home city.
+    offset_key = ('jump:' + name_orig + '|' + df['step'].astype(str)).to_numpy(dtype=object)
+    offset = 1 + (pd.util.hash_array(offset_key) % (_N_CITIES - 1)).astype(np.int64)
+    dest_idx = np.where(is_jump, (home_idx + offset) % _N_CITIES, home_idx)
+
+    geo = pd.DataFrame({
+        'nameOrig': name_orig.to_numpy(),
+        'step': step,
+        'lat': _GEO_LATS[dest_idx],
+        'lon': _GEO_LONS[dest_idx],
+    })
+    grp = geo.groupby('nameOrig', sort=False)
+    prev_lat = grp['lat'].shift(1).to_numpy()
+    prev_lon = grp['lon'].shift(1).to_numpy()
+    prev_step = grp['step'].shift(1).to_numpy()
+    has_prev = ~np.isnan(prev_lat)
+
+    lat1, lat2 = np.radians(prev_lat), np.radians(geo['lat'].to_numpy())
+    dlat = np.radians(geo['lat'].to_numpy() - prev_lat)
+    dlon = np.radians(geo['lon'].to_numpy() - prev_lon)
+    a = np.sin(dlat / 2.0) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2.0) ** 2
+    a = np.clip(a, 0.0, 1.0)  # guards float error pushing slightly outside [0,1] before sqrt
+    distance_km = _EARTH_RADIUS_KM * 2 * np.arcsin(np.sqrt(a))
+
+    delta_hours = np.clip(step - prev_step, 0.1, None)  # avoid divide-by-near-zero spikes
+    velocity = np.where(has_prev, distance_km / delta_hours, 0.0)
+    return np.nan_to_num(velocity, nan=0.0, posinf=0.0, neginf=0.0)
 
 
 def save_scaler(scaler: MinMaxScaler, path: Path | str = DEFAULT_SCALER_PATH) -> None:
@@ -86,7 +194,7 @@ def compute_feature_matrix(
     fit: bool = True,
 ) -> Tuple[np.ndarray, pd.DataFrame]:
     """
-    Computes and MinMax-scales the 12 engineered features, one row per transaction.
+    Computes and MinMax-scales the 13 engineered features, one row per transaction.
 
     Split out of ``engineer_features`` so that callers needing per-transaction
     features — scoring a live batch, for instance — share exactly this code
@@ -104,7 +212,7 @@ def compute_feature_matrix(
 
     Returns:
         Tuple[np.ndarray, pd.DataFrame]:
-            X_scaled of shape [num_rows, 12], every value in [0, 1]
+            X_scaled of shape [num_rows, 13], every value in [0, 1]
             the sorted, positionally-indexed frame the rows correspond to
 
     Raises:
@@ -134,8 +242,18 @@ def compute_feature_matrix(
         lambda x: x.rolling(10, min_periods=1).mean()
     )
     
-    # 2. balance_utilisation_ratio = newbalanceOrig / (oldbalanceOrg + 1e-6)
-    df['balance_utilisation_ratio'] = df['newbalanceOrig'] / (df['oldbalanceOrg'] + 1e-6)
+    # 2. balance_utilisation_ratio = newbalanceOrig / (oldbalanceOrg + 1e-6),
+    #    clipped to [0, 5]. oldbalanceOrg == 0 is common in PaySim (not a rare
+    #    freak row), so the +1e-6 guard turns any transaction against a
+    #    zero-balance origin into amount * 1e6 — one $69.9M CASH_OUT against a
+    #    zero-balance account fit the training scaler's max at ~69.9 trillion,
+    #    which compresses every ordinary ratio (including genuine fraud at
+    #    ~1.0) down to ~0 after MinMax scaling. Clipping before scaling keeps
+    #    the signal's dynamic range meaningful; 5x is generous headroom above
+    #    the fraud signal (~1.0) while discarding the divide-by-near-zero tail.
+    df['balance_utilisation_ratio'] = (
+        df['newbalanceOrig'] / (df['oldbalanceOrg'] + 1e-6)
+    ).clip(upper=5.0)
     
     # 3. channel_type_encoded
     channel_map = {'PAYMENT': 0, 'TRANSFER': 1, 'CASH_OUT': 2, 'DEBIT': 3, 'CASH_IN': 4}
@@ -150,8 +268,12 @@ def compute_feature_matrix(
         (df['newbalanceOrig'] < 1.0) & (df['oldbalanceOrg'] > 100)
     ).astype(float)
 
-    # 6. amount_to_balance_ratio: fraud typically takes the full balance (ratio ≈ 1.0)
-    df['amount_to_balance_ratio'] = df['amount'] / (df['oldbalanceOrg'] + 1e-6)
+    # 6. amount_to_balance_ratio: fraud typically takes the full balance (ratio
+    #    ≈ 1.0), clipped to [0, 5] for the same reason as feature 2 above —
+    #    same +1e-6 guard, same zero-balance-origin blowup, same fix.
+    df['amount_to_balance_ratio'] = (
+        df['amount'] / (df['oldbalanceOrg'] + 1e-6)
+    ).clip(upper=5.0)
     
     # 7. transaction_frequency_1h (count in last 1 step)
     df['transaction_frequency_1h'] = df.groupby(['nameOrig', 'step'])['step'].transform('count')
@@ -176,7 +298,10 @@ def compute_feature_matrix(
     
     # 12. step_norm: normalised time position within the simulation (continuous temporal signal)
     df['step_norm'] = df['step'] / (df['step'].max() + 1e-6)
-    
+
+    # 13. geo_velocity_kmh: SYNTHETIC — see synthesize_geo_velocity's docstring.
+    df['geo_velocity_kmh'] = synthesize_geo_velocity(df)
+
     # Fill any remaining NaNs/Infs
     X_raw = df[FEATURE_COLS].replace([np.inf, -np.inf], np.nan).fillna(0).values
 
@@ -211,7 +336,7 @@ def engineer_features(
     scaler_path: Path | str | None = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Engineers 12 features from raw PaySim data, normalises them, and returns
+    Engineers 13 features from raw PaySim data, normalises them, and returns
     a sliding window (sequence_length=5) representation for LSTM input.
 
     Args:
@@ -223,7 +348,7 @@ def engineer_features(
 
     Returns:
         Tuple[np.ndarray, np.ndarray]:
-            X array of shape [num_sequences, 5, 12]
+            X array of shape [num_sequences, 5, 13]
             y array of shape [num_sequences]
 
     Raises:
@@ -250,7 +375,7 @@ def engineer_features(
         else:
             # If customer has fewer than 5 transactions, pad with zeros at the beginning
             pad_len = seq_len - len(x_group)
-            pad_x = np.zeros((pad_len, 12))
+            pad_x = np.zeros((pad_len, len(FEATURE_COLS)))
             padded_x = np.vstack([pad_x, x_group])
             X_seq.append(padded_x)
             y_seq.append(y_group[-1])

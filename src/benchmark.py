@@ -30,7 +30,7 @@ def run_benchmark() -> dict:
     latencies_ms = []
 
     for i in range(N_CALLS):
-        seq = np.random.rand(5, 12).astype(np.float32)
+        seq = np.random.rand(5, 13).astype(np.float32)
         t0 = time.perf_counter()
         client.predict(seq)
         latencies_ms.append((time.perf_counter() - t0) * 1000)

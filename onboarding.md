@@ -106,7 +106,7 @@ The defaults work for local development without any changes. The `.env` file is 
 |----------|---------|-------|
 | `ELASTIC_PASSWORD` | _(none — you must set it)_ | Elastic superuser password. Set a real value before first `docker compose up`; it seeds the cluster on first boot |
 | `LSTM_SERVING_URL` | `http://localhost:8080` | Internal Docker network uses `http://lstm-serving:8080` |
-| `DECISION_THRESHOLD` | `0.92` | Fraud classification threshold (sweep-tuned on 35-epoch retrain) |
+| `DECISION_THRESHOLD` | `0.90` | Fraud classification threshold (13-feature geo-velocity checkpoint, post ratio-clip fix — 99.96% acc, 0.034% FPR) |
 
 ---
 

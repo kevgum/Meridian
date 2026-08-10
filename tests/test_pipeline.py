@@ -43,7 +43,7 @@ def test_feature_engineering_shapes_and_values(mock_paysim_data):
     # 2 customers means 2 sequences
     assert X.shape[0] == 2
     assert X.shape[1] == 5  # sequence length
-    assert X.shape[2] == 12 # num features
+    assert X.shape[2] == 13 # num features
     
     assert y.shape[0] == 2
     

@@ -1,0 +1,53 @@
+{
+  "run": "calibration_run_02_geo",
+  "data": "PaySim real (ealaxi/paysim1)",
+  "feature_count": 13,
+  "note": "13-feature pipeline including synthetic geo_velocity_kmh",
+  "subset_fraction": 0.2,
+  "epochs": 5,
+  "pos_weight": 1.0,
+  "final_val_accuracy": 0.9928667424790655,
+  "final_val_loss": 0.029304051276150763,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.16566124928045464,
+      "train_accuracy": 0.9447602645504536,
+      "val_loss": 0.09410728603498193,
+      "val_accuracy": 0.9694960698719082,
+      "elapsed_s": 26.55
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.07696088740145238,
+      "train_accuracy": 0.9816236766224439,
+      "val_loss": 0.05010573898975388,
+      "val_accuracy": 0.9846896749515612,
+      "elapsed_s": 25.85
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.06111557101352419,
+      "train_accuracy": 0.9851038514172601,
+      "val_loss": 0.03741547522959853,
+      "val_accuracy": 0.9894285056842624,
+      "elapsed_s": 25.7
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.052702649163297935,
+      "train_accuracy": 0.9869582772062844,
+      "val_loss": 0.06584104172696857,
+      "val_accuracy": 0.9838059380450406,
+      "elapsed_s": 26.57
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.04808106123784672,
+      "train_accuracy": 0.9876264421822911,
+      "val_loss": 0.029304051276150763,
+      "val_accuracy": 0.9928667424790655,
+      "elapsed_s": 27.73
+    }
+  ]
+}

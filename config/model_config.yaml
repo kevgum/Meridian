@@ -1,5 +1,5 @@
 model:
-  input_features: 12
+  input_features: 13
   sequence_length: 5
   hidden_size_1: 128
   hidden_size_2: 64

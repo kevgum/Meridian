@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 MODEL_PATH = os.getenv("MODEL_PATH", "/models/lstm_fraud_detector.onnx")
-THRESHOLD = float(os.getenv("DECISION_THRESHOLD", "0.92"))
+THRESHOLD = float(os.getenv("DECISION_THRESHOLD", "0.90"))
 
 session: ort.InferenceSession = None
 
@@ -31,7 +31,7 @@ app = FastAPI(title="Meridian LSTM Inference API", lifespan=lifespan)
 
 
 class PredictRequest(BaseModel):
-    # Shape: [batch_size, sequence_length=5, features=12]
+    # Shape: [batch_size, sequence_length=5, features=13]
     instances: List[List[List[float]]]
 
 
@@ -56,7 +56,7 @@ def predict(request: PredictRequest):
     """
     Accepts a batch of 5-transaction sequences and returns anomaly probabilities.
 
-    Input:  {"instances": [[[f1..f12], [f1..f12], [f1..f12], [f1..f12], [f1..f12]]]}
+    Input:  {"instances": [[[f1..f13], [f1..f13], [f1..f13], [f1..f13], [f1..f13]]]}
     Output: {"predictions": [[0.7412]]}
     """
     if session is None:
@@ -70,10 +70,10 @@ def predict(request: PredictRequest):
     if arr.ndim == 2:
         arr = arr[np.newaxis, ...]
 
-    if arr.ndim != 3 or arr.shape[1] != 5 or arr.shape[2] != 12:
+    if arr.ndim != 3 or arr.shape[1] != 5 or arr.shape[2] != 13:
         raise HTTPException(
             status_code=422,
-            detail=f"Expected shape [batch, 5, 12], got {list(arr.shape)}"
+            detail=f"Expected shape [batch, 5, 13], got {list(arr.shape)}"
         )
 
     input_name = session.get_inputs()[0].name

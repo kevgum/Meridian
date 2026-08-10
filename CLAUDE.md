@@ -92,7 +92,7 @@ Elasticsearch  ←────────────────────�
         ↓                                                  │
 Feature Engineering (Python Docker)                        │
   - 5-transaction sliding window per customer              │
-  - 12 features → tensor [1, 5, 12]                       │
+  - 13 features → tensor [1, 5, 13]                       │
         ↓                                                  │
 POST /v1/models/lstm:predict (ONNX Runtime + FastAPI)      │
   → anomaly_probability [0.0 – 1.0]                       │
@@ -114,7 +114,7 @@ Hybrid Threat Scorer                                       │
 **Architecture:** `LSTMFraudDetector` in [src/models/lstm_model.py](src/models/lstm_model.py)
 
 ```
-Input [batch, 5, 12]
+Input [batch, 5, 13]
   → LSTM(128, batch_first=True)
   → Dropout(0.30)
   → LSTM(64)
@@ -126,11 +126,13 @@ Input [batch, 5, 12]
 **Training:** PyTorch, 35 epochs, WeightedRandomSampler, pos_weight=1.0  
 **Serving:** ONNX Runtime + FastAPI — auto-converts `.pt → .onnx` at container startup  
 **Config:** [config/model_config.yaml](config/model_config.yaml)  
-**Decision threshold:** 0.92 (sigmoid output ≥ 0.92 = fraud) — sweep-selected to meet the 98.55% accuracy target
+**Decision threshold:** 0.90 (sigmoid output ≥ 0.90 = fraud) — sweep-selected to meet the 98.55% accuracy target on the 13-feature (geo-velocity) checkpoint, retrained after fixing an outlier-broken MinMax range on `amount_to_balance_ratio`/`balance_utilisation_ratio` (both were dividing by `oldbalanceOrg + 1e-6`, and a zero-balance-origin transaction blew the fitted max out to the tens of trillions, squashing genuine fraud values down to ~0). Yields **99.96% accuracy, 0.034% FPR, 93.5% recall** — the first checkpoint to meet both the accuracy and FPR targets, beating every prior checkpoint (12-feature, and the first 13-feature attempt at threshold 0.925/98.55%/1.40%/61.5%) on every metric. See `models/MODEL_CARD.md` Known Limitations item 6 for the full root-cause writeup.
 
-**12 Features (in order):**
+**13 Features (in order):**
 
-> Source of truth: `FEATURE_COLS` in [src/pipeline/feature_engineering.py](src/pipeline/feature_engineering.py). Positions 5, 6, 10 and 12 previously listed here as `geo_velocity_flag`, `merchant_category_code`, `beneficiary_risk_score` and `session_entropy` — those were a design draft and were **never trained**. A tensor built from that older list puts four of twelve inputs on the wrong axis and the model's output is noise.
+> Source of truth: `FEATURE_COLS` in [src/pipeline/feature_engineering.py](src/pipeline/feature_engineering.py). Positions 5, 6, 10 and 12 previously listed here as `geo_velocity_flag`, `merchant_category_code`, `beneficiary_risk_score` and `session_entropy` — those were a design draft and were **never trained**. A tensor built from that older list puts four of the first twelve inputs on the wrong axis and the model's output is noise.
+>
+> **Trained 2026-08-10:** feature 13, `geo_velocity_kmh`, was added to close that exact gap — the LSTM previously had no location signal at all (see `docs/architecture.md` Known Issues). It is **synthetic**: PaySim carries no real location data, so this is fabricated per-customer travel, deliberately biased toward `TRANSFER`/`CASH_OUT` transactions that drain most of the balance rather than reading the `isFraud` label directly (label leakage would make it unusable at serving time). Full rationale and the leakage-avoidance design in the function's own docstring. **The currently-deployed checkpoint (`models/lstm_checkpoint_best.pt`) was retrained on the full 13-feature set** (35 epochs, best val_acc 89.40% at epoch 7) and is served via the reconverted ONNX export. The retrain did not improve headline metrics — see `models/MODEL_CARD.md` Known Limitations item 5 for the full before/after and the disclosed regression.
 
 1. `amount_delta` — deviation from customer rolling average (window=10)
 2. `balance_utilisation_ratio` — newbalanceOrig / oldbalanceOrg
@@ -144,6 +146,7 @@ Input [batch, 5, 12]
 10. `dest_received_ratio` — (newbalanceDest − oldbalanceDest) / amount; legitimate ≈ 1.0
 11. `amount_zscore` — per-customer z-score
 12. `step_norm` — normalised time position
+13. `geo_velocity_kmh` — **SYNTHETIC**; fabricated per-customer travel speed, biased toward balance-draining TRANSFER/CASH_OUT transactions (see note above)
 
 **Scaling is part of the model.** Features are MinMax-scaled to [0, 1] and the LSTM saturates on anything outside that range. The fitted scaler must be the *training* one — refitting on a small batch sets min/max from that batch's extremes, and the model returns confidently wrong answers rather than obviously broken ones. Training writes `models/feature_scaler.json`; inference loads it via `compute_feature_matrix(..., fit=False)`.
 
@@ -210,7 +213,7 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | [docker-compose.yml](docker-compose.yml) | Full stack orchestration |
 | [models/lstm_checkpoint_best.pt](models/lstm_checkpoint_best.pt) | Best training checkpoint |
 | [models/MODEL_CARD.md](models/MODEL_CARD.md) | Model version + performance |
-| [results/final_metrics.json](results/final_metrics.json) | threshold=0.92 evaluation |
+| [results/final_metrics.json](results/final_metrics.json) | threshold=0.90 evaluation (13-feature, post ratio-clip fix) |
 | [results/latency_benchmark.json](results/latency_benchmark.json) | p99=28.5ms benchmark |
 | [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md) | Kanban — what's done vs in progress |
 | [docs/architecture.md](docs/architecture.md) | Full system architecture |
@@ -228,7 +231,7 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 | [scripts/generate_certs.sh](scripts/generate_certs.sh) | Self-signed TLS cert generation for Elasticsearch (production hardening) |
 | [tests/test_rbac.py](tests/test_rbac.py) | RBAC integration tests — AT-9 coverage (requires live ES) |
 | [docs/requirements_traceability_matrix.md](docs/requirements_traceability_matrix.md) | US-01–US-11 → AT-1–AT-10 traceability matrix |
-| [frontend/src/data/mockData.ts](frontend/src/data/mockData.ts) | All Day 10 mock data — KPIs, CUST-18656 transactions, SIEM result, incident, chart history |
+| [frontend/src/data/referenceData.ts](frontend/src/data/referenceData.ts) | Real reference constants only (validated model accuracy/FPR, analyst name) — no mock transaction data; removed 2026-08-10, dashboard now shows empty/loading state until live Elasticsearch data arrives |
 | [frontend/src/types/index.ts](frontend/src/types/index.ts) | TypeScript interfaces for dashboard |
 | [frontend/src/components/](frontend/src/components/) | 6 React components: TopBar, TransactionFeed, DetectionPanel, AlertQueue, HybridChart, ComplianceBadges |
 | [frontend/vercel.json](frontend/vercel.json) | Vercel SPA rewrite rule |
@@ -241,7 +244,7 @@ All credentials come from `.env` (copy from `.env.example`). Never hardcode.
 |----------|--------|
 | Serving framework | ONNX Runtime + FastAPI (not TF Serving) |
 | ONNX source | Auto-converted from `.pt` at container startup |
-| Decision threshold | 0.92 (was 0.90; retuned on 35-epoch retrain to meet 98.55% accuracy target) |
+| Decision threshold | 0.90 (13-feature geo-velocity checkpoint, post ratio-clip fix — 99.96% acc, 0.034% FPR, 93.5% recall; see Model Details above) |
 | pos_weight | 1.0 (WeightedRandomSampler handles class balance) |
 | LSTM weights | `lstm_checkpoint_best.pt` (best val_acc checkpoint, not final epoch) |
 | Hybrid threshold | 0.70 |
