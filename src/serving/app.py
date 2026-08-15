@@ -79,19 +79,84 @@ class PredictResponse(BaseModel):
     metadata: Optional[InferenceMetadata] = None
 
 
+def _normalise_shape(raw: list) -> list:
+    """Turn an ONNX shape into plain JSON.
+
+    ONNX reports a dynamic axis as its symbolic name (``"batch_size"``) rather
+    than a number. Those become ``None`` so the shape reads as a list of
+    dimensions with the variable one marked, instead of mixing ints and
+    strings.
+    """
+    return [d if isinstance(d, int) else None for d in raw]
+
+
+def _element_count(shape: list) -> int:
+    """Elements in one sequence — the product of the fixed dimensions.
+
+    Dynamic axes (batch) are skipped, so this answers "per sequence", which is
+    the number that stays constant regardless of how many are sent at once.
+    """
+    count = 1
+    for d in shape:
+        if isinstance(d, int) and d > 0:
+            count *= d
+    return count
+
+
 @app.get("/v1/models/lstm")
 def model_status():
-    """Health check — returns AVAILABLE when model is loaded."""
+    """Health check — returns AVAILABLE when model is loaded.
+
+    Also reports the model's input and output tensor sizes, read from the
+    loaded ONNX graph itself rather than hardcoded, so the numbers cannot
+    drift away from the model actually being served.
+    """
     if session is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
+
+    inp = session.get_inputs()[0]
+    out = session.get_outputs()[0]
+    in_shape = _normalise_shape(inp.shape)
+    out_shape = _normalise_shape(out.shape)
+
     return {
         "model_version_status": [
             {"version": "1", "state": "AVAILABLE", "threshold": THRESHOLD}
         ],
         "model_name": MODEL_NAME,
         "model_version": MODEL_VERSION,
-        "input_shape": [None, 5, 13],
-        "input_elements_per_sequence": 5 * 13,
+
+        # Kept at the top level for backwards compatibility with anything
+        # already reading them; the full picture is under "io".
+        "input_shape": in_shape,
+        "input_elements_per_sequence": _element_count(in_shape),
+
+        "io": {
+            "input": {
+                "name": inp.name,
+                "shape": in_shape,
+                "dtype": inp.type,
+                "elements_per_sequence": _element_count(in_shape),
+                "layout": "5 timesteps x 13 engineered features",
+            },
+            "output": {
+                "name": out.name,
+                "shape": out_shape,
+                "dtype": out.type,
+                "elements_per_sequence": _element_count(out_shape),
+                "layout": "one logit per sequence; sigmoid applied at serve "
+                          "time to give an anomaly probability in [0, 1]",
+            },
+            # Stated explicitly because "token count" is the question this
+            # endpoint gets asked, and the honest answer is that the concept
+            # does not apply: tokens are a language-model unit. The comparable
+            # measure for a tensor model is how many values cross the
+            # boundary, which is what the counts above are.
+            "note": "This is a tensor model, not a language model, so it has "
+                    "no tokens. The equivalent measure is tensor elements: "
+                    f"{_element_count(in_shape)} float32 values in per "
+                    f"sequence, {_element_count(out_shape)} out.",
+        },
     }
 
 
