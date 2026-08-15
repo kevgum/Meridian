@@ -2,6 +2,7 @@ import os
 import time
 import uuid
 import logging
+from collections import deque
 from datetime import datetime, timezone
 
 import numpy as np
@@ -9,7 +10,7 @@ import onnxruntime as ort
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Any, Deque, Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,6 +26,27 @@ MODEL_VERSION = os.getenv("MODEL_VERSION", "1.2.0")
 
 session: ort.InferenceSession = None
 
+# Rolling log of the inferences this process has served, newest last.
+#
+# Scope, stated plainly because it is easy to over-read: this is the *model
+# server's* view. It sees tensors, never transactions — there is no customer id,
+# amount or merchant at this layer, because none of that is sent to the model.
+# It is also in-process memory, so it starts empty on every container restart
+# and covers only this replica.
+#
+# The durable, transaction-level record is the meridian-audit-* Elasticsearch
+# index written by src/observability/audit.py, which correlates each of these
+# request_ids back to the transaction that caused it.
+_LOG_CAPACITY = 200
+_INFERENCE_LOG: Deque[Dict[str, Any]] = deque(maxlen=_LOG_CAPACITY)
+_TOTALS: Dict[str, Any] = {
+    "requests_served": 0,
+    "sequences_scored": 0,
+    "input_elements": 0,
+    "output_elements": 0,
+    "started_at": None,
+}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,6 +54,7 @@ async def lifespan(app: FastAPI):
     if not os.path.exists(MODEL_PATH):
         raise RuntimeError(f"ONNX model not found at {MODEL_PATH}")
     session = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
+    _TOTALS["started_at"] = datetime.now(tz=timezone.utc).isoformat()
     logger.info("ONNX model loaded from %s", MODEL_PATH)
     yield
     session = None
@@ -104,12 +127,15 @@ def _element_count(shape: list) -> int:
 
 
 @app.get("/v1/models/lstm")
-def model_status():
-    """Health check — returns AVAILABLE when model is loaded.
+def model_status(limit: int = 20):
+    """Model status, tensor sizes, and a log of what this server has scored.
 
-    Also reports the model's input and output tensor sizes, read from the
-    loaded ONNX graph itself rather than hardcoded, so the numbers cannot
-    drift away from the model actually being served.
+    Tensor shapes are read from the loaded ONNX graph rather than hardcoded, so
+    they cannot drift away from the model actually being served.
+
+    Args:
+        limit: how many recent inferences to include (newest first). Use 0 to
+               omit the log and return status only.
     """
     if session is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
@@ -156,6 +182,24 @@ def model_status():
                     "no tokens. The equivalent measure is tensor elements: "
                     f"{_element_count(in_shape)} float32 values in per "
                     f"sequence, {_element_count(out_shape)} out.",
+        },
+
+        "inference_log": {
+            "totals": dict(_TOTALS),
+            "capacity": _LOG_CAPACITY,
+            "returned": min(limit, len(_INFERENCE_LOG)) if limit > 0 else 0,
+            "available": len(_INFERENCE_LOG),
+            # Newest first — the opposite of insertion order, because the
+            # question this answers is almost always "what just happened".
+            "recent": list(reversed(_INFERENCE_LOG))[:limit] if limit > 0 else [],
+            "scope": "In-process memory for this container only: it resets on "
+                     "restart and holds the last "
+                     f"{_LOG_CAPACITY} calls. The model server sees tensors, "
+                     "not transactions - there is no customer id, amount or "
+                     "merchant at this layer because none is sent to the "
+                     "model. For the transaction-level record, query the "
+                     "meridian-audit-* Elasticsearch index by correlation_id; "
+                     "each audit entry carries the request_id shown here.",
         },
     }
 
@@ -222,5 +266,27 @@ def predict(request: PredictRequest):
         request_id, MODEL_NAME, MODEL_VERSION, list(arr.shape),
         arr.size, metadata.output_elements, latency_ms,
     )
+
+    # Keep a rolling record so /v1/models/lstm can show what this server has
+    # actually scored. Probabilities are rounded for display; the authoritative
+    # values are the ones returned above and stored in Elasticsearch.
+    scored = [round(float(p[0]), 4) for p in probs]
+    _INFERENCE_LOG.append({
+        "request_id": request_id,
+        "timestamp": metadata.inference_timestamp,
+        "input_shape": list(arr.shape),
+        "input_elements": int(arr.size),
+        "output_shape": [len(probs), len(probs[0])],
+        "output_elements": metadata.output_elements,
+        "latency_ms": round(latency_ms, 3),
+        "anomaly_probabilities": scored,
+        "assessment": [
+            "ANOMALY" if s >= THRESHOLD else "NORMAL" for s in scored
+        ],
+    })
+    _TOTALS["requests_served"] += 1
+    _TOTALS["sequences_scored"] += len(probs)
+    _TOTALS["input_elements"] += int(arr.size)
+    _TOTALS["output_elements"] += metadata.output_elements
 
     return PredictResponse(predictions=probs, metadata=metadata)
