@@ -1,4 +1,4 @@
-"""Unit tests for ElasticSIEMCorrelator — all four SIEM rules and score normalisation.
+"""Unit tests for ElasticSIEMCorrelator — all five SIEM rules and score normalisation.
 
 Each test is self-contained: the correlator is constructed with a tmp_path
 watchlist so tests never depend on the state of the real watchlist/merchants.json.
@@ -244,6 +244,178 @@ class TestRuleWatchlistMerchant:
 
 
 # ---------------------------------------------------------------------------
+# Rule 5 — burst velocity ("slow burn")
+# ---------------------------------------------------------------------------
+
+def _burst(n: int, amount: float, spacing_minutes: int = 15) -> list[dict]:
+    """n transactions of `amount`, `spacing_minutes` apart, ending at 15:15."""
+    from datetime import datetime, timedelta
+
+    end = datetime.fromisoformat("2025-06-30T15:15:00+10:00")
+    return [
+        {
+            "amount": amount,
+            "timestamp": (end - timedelta(minutes=spacing_minutes * i)).isoformat(),
+        }
+        for i in reversed(range(n))
+    ]
+
+
+class TestRuleBurstVelocity:
+    def test_triggers_on_drain_by_many_small_payments(
+        self, correlator: ElasticSIEMCorrelator
+    ) -> None:
+        """5+ transactions inside the window taking >=20% of the balance."""
+        event = _clean_event()
+        event["timestamp"] = "2025-06-30T15:15:00+10:00"
+        event["recent_transactions"] = _burst(6, 120.0)   # 720 total
+        event["balance_before"] = 3_000.0                 # 24% drained
+        result = correlator.evaluate(event)
+        rule = next(r for r in result["rules"] if r["rule_id"] == "RULE_005")
+
+        assert rule["triggered"] is True
+        assert rule["evidence"]["transaction_count"] == 6
+        assert rule["evidence"]["balance_fraction"] == pytest.approx(0.24)
+
+    def test_busy_shopper_does_not_trigger(self, correlator: ElasticSIEMCorrelator) -> None:
+        """Plenty of transactions, but they barely dent the balance."""
+        event = _clean_event()
+        event["timestamp"] = "2025-06-30T15:15:00+10:00"
+        event["recent_transactions"] = _burst(8, 20.0)    # 160 total
+        event["balance_before"] = 9_000.0                 # 1.8% — a shopping trip
+        result = correlator.evaluate(event)
+        rule = next(r for r in result["rules"] if r["rule_id"] == "RULE_005")
+
+        assert rule["triggered"] is False
+
+    def test_few_large_payments_do_not_trigger(
+        self, correlator: ElasticSIEMCorrelator
+    ) -> None:
+        """A big spend spread over too few transactions is Rule 1's problem, not this one."""
+        event = _clean_event()
+        event["timestamp"] = "2025-06-30T15:15:00+10:00"
+        event["recent_transactions"] = _burst(3, 900.0)   # 2700 total, 90%
+        event["balance_before"] = 3_000.0
+        result = correlator.evaluate(event)
+        rule = next(r for r in result["rules"] if r["rule_id"] == "RULE_005")
+
+        assert rule["triggered"] is False
+        assert rule["evidence"]["transaction_count"] == 3
+
+    def test_transactions_outside_the_window_are_excluded(
+        self, correlator: ElasticSIEMCorrelator
+    ) -> None:
+        """Same six payments spread over a day are not a burst."""
+        event = _clean_event()
+        event["timestamp"] = "2025-06-30T15:15:00+10:00"
+        event["recent_transactions"] = _burst(6, 120.0, spacing_minutes=180)
+        event["balance_before"] = 3_000.0
+        result = correlator.evaluate(event)
+        rule = next(r for r in result["rules"] if r["rule_id"] == "RULE_005")
+
+        assert rule["triggered"] is False
+        assert rule["evidence"]["transaction_count"] == 1  # only the current one
+
+    def test_fraction_measured_against_window_opening_balance(
+        self, correlator: ElasticSIEMCorrelator
+    ) -> None:
+        """The denominator is the balance when the burst began, not at start of history.
+
+        A customer with a long quiet day behind them must not be measured
+        against the balance they held that morning — only against what they
+        had when the burst window opened.
+        """
+        from datetime import datetime, timedelta
+
+        end = datetime.fromisoformat("2025-06-30T15:15:00+10:00")
+        # One ordinary payment 8 hours earlier, then a 6-payment burst.
+        history = [{
+            "amount": 40.0,
+            "timestamp": (end - timedelta(hours=8)).isoformat(),
+            "balance_before": 9_000.0,
+        }]
+        history += [
+            {
+                "amount": 120.0,
+                "timestamp": (end - timedelta(minutes=15 * i)).isoformat(),
+                "balance_before": 3_000.0,
+            }
+            for i in reversed(range(6))
+        ]
+
+        event = _clean_event()
+        event["timestamp"] = end.isoformat()
+        event["recent_transactions"] = history
+        event["balance_before"] = 9_000.0  # start-of-day — must NOT be used
+        result = correlator.evaluate(event)
+        rule = next(r for r in result["rules"] if r["rule_id"] == "RULE_005")
+
+        assert rule["evidence"]["transaction_count"] == 6      # the old payment is excluded
+        assert rule["evidence"]["balance_before"] == 3_000.0   # window opening, not 9,000
+        assert rule["evidence"]["balance_fraction"] == pytest.approx(0.24)
+        assert rule["triggered"] is True
+
+    def test_missing_history_does_not_trigger(
+        self, correlator: ElasticSIEMCorrelator
+    ) -> None:
+        """No history supplied → rule cannot evaluate, and says so."""
+        result = correlator.evaluate(_clean_event())
+        rule = next(r for r in result["rules"] if r["rule_id"] == "RULE_005")
+
+        assert rule["triggered"] is False
+        assert "error" in rule["evidence"]
+
+    def test_zero_balance_does_not_trigger(self, correlator: ElasticSIEMCorrelator) -> None:
+        """An empty account cannot be drained — the fraction is undefined, not infinite."""
+        event = _clean_event()
+        event["timestamp"] = "2025-06-30T15:15:00+10:00"
+        event["recent_transactions"] = _burst(6, 120.0)
+        event["balance_before"] = 0.0
+        result = correlator.evaluate(event)
+        rule = next(r for r in result["rules"] if r["rule_id"] == "RULE_005")
+
+        assert rule["triggered"] is False
+        assert "error" in rule["evidence"]
+
+    def test_cust18656_slow_burn_scenario(self, correlator: ElasticSIEMCorrelator) -> None:
+        """The documented CUST-18656 pattern: six payments, every other rule passing.
+
+        Amounts and 15-minute spacing are the scenario's own; the balance is not
+        recorded anywhere in the source material, so $3,200 is chosen here to
+        put the customer at 20.8% drained — just over the line.  The rule's
+        verdict on this case genuinely depends on that balance, which is worth
+        knowing rather than papering over.
+        """
+        from datetime import datetime, timedelta
+
+        end = datetime.fromisoformat("2025-06-30T15:15:00+10:00")
+        amounts = [256.74, 71.28, 61.59, 69.46, 59.53, 146.60]
+        history = [
+            {
+                "amount": amt,
+                "timestamp": (end - timedelta(minutes=15 * (len(amounts) - 1 - i))).isoformat(),
+            }
+            for i, amt in enumerate(amounts)
+        ]
+
+        event = _clean_event()
+        event["amount"] = amounts[-1]
+        event["timestamp"] = end.isoformat()
+        event["recent_transactions"] = history
+        event["balance_before"] = 3_200.0
+
+        result = correlator.evaluate(event)
+        rule = next(r for r in result["rules"] if r["rule_id"] == "RULE_005")
+
+        assert rule["triggered"] is True
+        assert rule["evidence"]["transaction_count"] == 6
+        assert rule["evidence"]["cumulative_amount"] == pytest.approx(665.20)
+        # Every other rule still passes — that is what makes this the slow burn.
+        others = {r["rule_id"] for r in result["rules"] if r["triggered"]}
+        assert others == {"RULE_005"}
+
+
+# ---------------------------------------------------------------------------
 # Score normalisation
 # ---------------------------------------------------------------------------
 
@@ -283,12 +455,15 @@ class TestScoreNormalisation:
 
 
 # ---------------------------------------------------------------------------
-# All four rules fire simultaneously
+# All four single-transaction rules fire simultaneously
+#
+# Rule 5 is deliberately absent: this event carries no transaction history, so
+# the burst rule cannot evaluate it.  The count of 4 is therefore still correct.
 # ---------------------------------------------------------------------------
 
 class TestAllRulesFire:
     def test_all_four_rules_trigger(self, correlator: ElasticSIEMCorrelator) -> None:
-        """Worst-case fraud event must trigger all four rules and return score 1.00."""
+        """Worst-case single transaction triggers all four stateless rules, score 1.00."""
         event = {
             # Rule 1: high value
             "amount": 50_000.0,

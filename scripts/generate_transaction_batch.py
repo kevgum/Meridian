@@ -177,6 +177,11 @@ class Txn:
     siem: dict = field(default_factory=dict)
     result: dict = field(default_factory=dict)
 
+    # This customer's own earlier transactions, oldest first. Rule 5 (burst
+    # velocity) is the one rule that reads more than the current transaction,
+    # so somebody has to hand it the history — see attach_history().
+    recent: list = field(default_factory=list)
+
     def paysim_row(self) -> dict:
         """The row shape ``compute_feature_matrix`` expects.
 
@@ -201,6 +206,10 @@ class Txn:
         """The event dict shape ``ElasticSIEMCorrelator.evaluate`` expects."""
         lat, lon = LOCATIONS[self.location]
         plat, plon = LOCATIONS[self.prev_location]
+        # Rule 5 reads the customer's run of transactions, not just this one.
+        # balance_before is the balance held when the window opened — the
+        # oldest transaction's opening balance, or this one's if it stands alone.
+        window = [*self.recent, self]
         return {
             "customer_id": self.customer_id,
             "amount": self.amount,
@@ -216,7 +225,35 @@ class Txn:
             # transaction fires (PlaybookEngine._build_incident) can show a real
             # place name instead of a hardcoded one.
             "location": self.location,
+            # Rule 5 — burst velocity. Each entry carries its own opening
+            # balance so the rule can measure the drain against the balance
+            # held when its window opened, not the start of all history.
+            "recent_transactions": [
+                {
+                    "amount": t.amount,
+                    "timestamp": t.when.isoformat(),
+                    "balance_before": t.old_balance_orig,
+                }
+                for t in window
+            ],
+            "balance_before": window[0].old_balance_orig,
         }
+
+
+def attach_history(txns: list[Txn]) -> None:
+    """Give every transaction the customer's own earlier transactions.
+
+    Rules 1–4 judge a transaction in isolation; Rule 5 judges the run it
+    belongs to, so it needs the customer's prior activity. Walking the batch
+    in time order and handing each transaction the ones already seen for that
+    customer reproduces exactly what a live system would know at that moment —
+    no peeking at transactions that had not happened yet.
+    """
+    seen: dict[str, list[Txn]] = {}
+    for txn in sorted(txns, key=lambda t: t.when):
+        prior = seen.setdefault(txn.customer_id, [])
+        txn.recent = list(prior)
+        prior.append(txn)
 
 
 def _at(base: datetime, hours_ago: float) -> datetime:
@@ -409,7 +446,9 @@ def build_batch(count: int, seed: int, hours: int) -> list[Txn]:
         txn.lstm_score = round(rng.uniform(low, high), 4)
 
     txns.sort(key=lambda t: t.when)
-    return txns[:count] if count < len(txns) else txns
+    txns = txns[:count] if count < len(txns) else txns
+    attach_history(txns)
+    return txns
 
 
 def _assign_balances(txn: Txn, rng: random.Random) -> None:

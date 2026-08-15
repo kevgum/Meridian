@@ -124,6 +124,44 @@ see Known Limitations item 6 for what changed.
    milder observed range (`[-65949, 85415]`); left unclipped for now —
    worth the same scrutiny in a future pass.
 
+7. **The model is a single-transaction classifier, not a sequence model — a
+   dataset limitation, disclosed 2026-08-10.** The architecture takes a
+   5-transaction window and the pipeline builds one, but PaySim has almost no
+   multi-transaction customers to fill it:
+
+   | Measure | Full 6,362,620-row PaySim file |
+   |---|---|
+   | Unique customers | 6,353,307 |
+   | Mean transactions per customer | 1.001 |
+   | Max transactions per customer | 3 |
+   | Max transactions per **fraud** customer | 1 |
+   | Training windows with 1 real row + 4 padding rows | 99.96% |
+   | Training windows with 3+ real rows | 0 |
+
+   Every labelled fraud case in PaySim is a single isolated transaction, so
+   the LSTM has learned exactly one thing well: recognising a transaction that
+   abruptly drains an account. It does that very accurately (93.5% recall,
+   0.034% FPR). What it cannot do is recognise anything that only exists
+   across a sequence — a slow burn of small payments, a gradual behavioural
+   drift, an escalating transaction rate — because no such example appears in
+   the training data, fraudulent or otherwise. `transaction_frequency_1h` and
+   `transaction_frequency_24h` are computed correctly but carry almost no
+   information for the same reason: their fitted range is `[1, 2]`.
+
+   Two practical consequences. First, scores on customers with a genuinely
+   full 5-transaction window are extrapolation — the model never saw that
+   input shape in training, so a strong per-row signal still dominates
+   correctly (verified: a full-drain transaction in a 5-row window scores
+   0.9997) but a purely sequential signal produces nothing. Second, slow-burn
+   detection is implemented as **SIEM Rule 5** (`_rule_burst_velocity`),
+   deterministically, rather than by the model: teaching it to the LSTM would
+   mean fabricating both the multi-transaction sequences and their fraud
+   labels, which is a different claim than "the model learned this".
+
+   Closing this properly needs a dataset with real customer transaction
+   histories — a per-customer sequential dataset, or PaySim regenerated with
+   its simulator configured to emit multiple transactions per account.
+
 ## Compliance
 | Control | Standard | Status |
 |---|---|---|

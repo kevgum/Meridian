@@ -75,6 +75,7 @@ from scripts.generate_transaction_batch import (  # noqa: E402
     Txn,
     _build_es,
     _env_value,
+    attach_history,
     score_with_model,
     transaction_doc,
 )
@@ -294,6 +295,11 @@ def run(
                 n_skipped += 1
                 time.sleep(rng.uniform(interval_min, interval_max))
                 continue
+
+            # Rule 5 needs this customer's run of transactions, not just this
+            # tick. Recomputed over the retained window each time so a customer
+            # building up a burst is seen as one.
+            attach_history(all_txns)
 
             txn.siem = correlator.evaluate(txn.event())
             txn.result = scorer.score(txn.lstm_score, txn.siem, txn.event())

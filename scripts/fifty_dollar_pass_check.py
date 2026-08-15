@@ -47,6 +47,7 @@ from scripts.generate_transaction_batch import (  # noqa: E402
     Txn,
     _build_es,
     _env_value,
+    attach_history,
     score_with_model,
     transaction_doc,
 )
@@ -146,6 +147,7 @@ def main() -> int:
     print(f"Customer {CUSTOMER_ID}: 4 ordinary payments today, then a $50.00 '50 Dollar Pass Check'.\n")
 
     txns = build_session()
+    attach_history(txns)
     target = txns[-1]
 
     base_url = _env_value("LSTM_SERVING_URL", "http://localhost:8080")

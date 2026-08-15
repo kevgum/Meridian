@@ -288,26 +288,32 @@ fires       (MONITOR)
 
 A customer in Darwin makes 6 transactions in 2 hours at electronics and restaurant merchants:
 
-| Time | Amount | Channel | Merchant | SIEM Result |
-|------|--------|---------|---------|-------------|
-| 11:27 | $256.74 | Card | MCC 5732 | PASS (all 4 rules) |
-| 11:28 | $71.28 | Online | MCC 5732 | PASS |
-| 11:30 | $61.59 | Online | MCC 5812 | PASS |
-| 11:37 | $69.46 | Online | MCC 5732 | PASS |
-| 11:37 | $59.53 | Online | MCC 5812 | PASS |
-| 11:37 | $146.60 | Card | MCC 5732 | PASS |
+| Time | Amount | Channel | Merchant | Rules 1–4 | Rule 5 |
+|------|--------|---------|---------|-----------|--------|
+| 14:00 | $256.74 | Card | MCC 5732 | PASS | not yet — 1 in window |
+| 14:15 | $71.28 | Online | MCC 5732 | PASS | not yet — 2 in window |
+| 14:30 | $61.59 | Online | MCC 5812 | PASS | not yet — 3 in window |
+| 14:45 | $69.46 | Online | MCC 5732 | PASS | not yet — 4 in window |
+| 15:00 | $59.53 | Online | MCC 5812 | PASS | not yet — 5, but only 15.3% drained |
+| 15:15 | $146.60 | Card | MCC 5732 | PASS | **TRIGGERED** — 6 in window, 20.8% drained |
 
-LSTM observation: 6 electronics/restaurant transactions in 2 hours is not this customer's normal behaviour. Session entropy is elevated (2.40 above baseline). Merchant cluster matches known mule ring pattern. LSTM anomaly score: **0.74**.
+Every single-transaction rule passes on every payment: each amount is far below the $10,000 line, the customer never leaves Darwin, all six are inside business hours, and no merchant is watchlisted. That is what makes this the slow burn — the fraud is in the shape of the sequence, not in any one transaction.
 
-SIEM rules triggered: **0** → siem_score = 0.00  
-Hybrid threat score: **(0.74 × 0.6) + (0.00 × 0.4) = 0.444 + 0.0 = 0.44** ... but wait — the hybrid score shown in the dashboard is **74% SUSPICIOUS**. This is the correct behaviour: when SIEM fires 0 rules but LSTM is high (0.74), the raw LSTM score is surfaced directly as the primary evidence. The system is designed so a strong LSTM signal alone can exceed threshold. The threshold check is:
+**Rule 5 (burst velocity) is what catches it**, on the sixth payment, when the run first clears both bars: ≥5 transactions inside 120 minutes, together taking ≥20% of the balance held when the window opened ($665.20 of $3,200 = 20.79%). Reproduce it with `scripts/slow_burn_check.py`.
+
+**The LSTM contributes nothing here, and that is a data limitation, not a tuning problem.** PaySim has a mean of 1.001 transactions per customer and a maximum of 3 in the entire 6.3M-row file; every labelled fraud in it is a single isolated transaction, and 99.96% of training windows are one real row plus four rows of zero-padding. A multi-transaction pattern is therefore unlearnable from this dataset — see `models/MODEL_CARD.md` Known Limitations item 7.
+
+Scores on the sixth payment:
 
 ```
-if lstm_score >= 0.70 OR threat_score >= 0.70:
-    flag_as_suspicious()
+lstm_score   = 0.0000   (no multi-transaction training signal exists)
+siem_score   = 0.33     (1 of 5 rules triggered)
+threat_score = 0.0000 x 0.60 + 0.33 x 0.40 = 0.1320  →  MONITOR
 ```
 
-Result: Alert raised as MEDIUM severity. Assigned to Analyst A. Nguyen-04. SLA: 4 minutes 8 seconds to action.
+**Result: MONITOR, not FLAGGED — by design.** SIEM alone caps at 0.40 and can never cross the 0.70 line without the model agreeing. That restraint is deliberate: locking a customer's account because they made six purchases in an afternoon would be a bad false positive. The rule's job is to put the pattern in front of an analyst with its evidence attached, and the queue shows it with the drain figures the analyst can check by hand.
+
+> **Historical note.** Earlier revisions of this document and the project report described the LSTM catching this case with a score of 0.74, citing features (`session_entropy`, merchant-cluster matching) that were part of an early design draft and were never trained. Neither the score nor those features were ever produced by a real model run. The behaviour documented above is what the deployed system actually does, verified by `scripts/slow_burn_check.py` and `tests/test_siem_rules.py::TestRuleBurstVelocity`.
 
 ---
 
@@ -429,7 +435,7 @@ meridian-sentinel/
 │   ├── models/
 │   │   └── lstm_model.py             # PyTorch LSTMFraudDetector
 │   └── siem/
-│       ├── rule_engine.py            # ElasticSIEMCorrelator (4 rules)
+│       ├── rule_engine.py            # ElasticSIEMCorrelator (5 rules)
 │       ├── hybrid_scorer.py          # HybridThreatScorer
 │       └── playbook_engine.py        # PlaybookEngine
 │

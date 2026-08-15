@@ -55,6 +55,7 @@ from scripts.generate_transaction_batch import (  # noqa: E402
     Txn,
     _build_es,
     _env_value,
+    attach_history,
     transaction_doc,
 )
 from src.inference_client import LSTMInferenceClient  # noqa: E402
@@ -180,6 +181,7 @@ def main() -> int:
     print(f"to a watchlisted mule account in Perth, 25 minutes later, off-hours.\n")
 
     txns = build_session()
+    attach_history(txns)
     target = txns[-1]
 
     base_url = _env_value("LSTM_SERVING_URL", "http://localhost:8080")

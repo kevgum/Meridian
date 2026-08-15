@@ -318,13 +318,23 @@ class TestAT4_SIEMAlertLatency:
         assert isinstance(result, dict), "evaluate() must return a dict"
         assert "siem_score" in result, "Result missing siem_score key"
 
-    def test_all_four_rules_evaluated(self) -> None:
+    def test_all_rules_evaluated(self) -> None:
+        """Every rule reports a result, whether or not it fired.
+
+        Five since Rule 5 (burst velocity) was added; this event carries no
+        transaction history, so Rule 5 returns triggered=False with an error
+        note rather than being skipped — the contract is that the analyst sees
+        a line for every rule.
+        """
         correlator = ElasticSIEMCorrelator(watchlist_path=str(_WATCHLIST))
         correlator._watchlist.add("M-BAD-001")
         result = correlator.evaluate(_full_siem_event())
-        assert len(result["rules"]) == 4, (
-            f"AT-4 FAIL: expected 4 rule results, got {len(result['rules'])}"
+        assert len(result["rules"]) == 5, (
+            f"AT-4 FAIL: expected 5 rule results, got {len(result['rules'])}"
         )
+        assert {r["rule_id"] for r in result["rules"]} == {
+            "RULE_001", "RULE_002", "RULE_003", "RULE_004", "RULE_005",
+        }
 
     def test_high_risk_event_scores_above_zero(self) -> None:
         correlator = ElasticSIEMCorrelator(watchlist_path=str(_WATCHLIST))

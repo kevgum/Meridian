@@ -152,9 +152,9 @@ Input [batch, 5, 13]
 
 ---
 
-## SIEM Rules (Day 7 — complete)
+## SIEM Rules (Day 7 — complete; Rule 5 added 2026-08-10)
 
-Implemented in [src/siem/rule_engine.py](src/siem/rule_engine.py) as `ElasticSIEMCorrelator`. 22/22 unit tests passing.
+Implemented in [src/siem/rule_engine.py](src/siem/rule_engine.py) as `ElasticSIEMCorrelator`. 30/30 unit tests passing.
 
 | Rule | Condition | Severity |
 |------|-----------|---------|
@@ -162,8 +162,13 @@ Implemented in [src/siem/rule_engine.py](src/siem/rule_engine.py) as `ElasticSIE
 | Rule 2 | Haversine geo-velocity > 500 km/h between consecutive transactions | HIGH |
 | Rule 3 | Transaction time before 08:00 or after 22:00 AEST/AEDT | MEDIUM |
 | Rule 4 | Merchant ID in `watchlist/merchants.json` | HIGH |
+| Rule 5 | **Burst velocity ("slow burn")** — ≥5 transactions in a 120-minute window that together take ≥20% of the balance held when the window opened | MEDIUM |
 
 Each rule returns: `{rule_id, triggered: bool, severity: str, evidence: dict}`
+
+**Rule 5 is the only rule that reads more than the current transaction.** Rules 1–4 are stateless per-transaction checks; Rule 5 needs the customer's own recent run, supplied by the caller as `recent_transactions` (the same way Rule 2 is handed `prev_lat`/`prev_lon`) — the correlator still holds no state of its own. `scripts/generate_transaction_batch.py:attach_history()` populates it; `live_stream.py` and all three walkthrough scripts call it.
+
+**Why this is a rule and not a model feature.** PaySim has 6,353,307 unique customers across 6,362,620 transactions — a mean of **1.001 transactions per customer**, max 3 in the entire file, and every labelled fraud is a single isolated transaction. 99.96% of training windows are one real row plus four rows of zero-padding. A slow burn is by definition a multi-transaction shape, so nothing in the training data could teach it; detecting it with the LSTM would require fabricating both the sequences and their fraud labels. See `models/MODEL_CARD.md` Known Limitations item 7.
 
 SIEM score normalisation:
 - 0 rules → 0.00
