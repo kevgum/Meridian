@@ -129,6 +129,33 @@ FEATURE_NAMES: list[str] = [
 ]
 
 
+# Docker Compose service name -> the port it publishes on the host. Inside the
+# dev container the pipeline talks to `http://lstm-serving:8080`, which is the
+# real endpoint and is what the audit trail records. That hostname only resolves
+# on the Compose network, though, so pasting it into a browser on the host gives
+# DNS_PROBE_FINISHED_NXDOMAIN. This maps each internal name to the address that
+# reaches the same service from the host.
+_SERVICE_TO_HOST_PORT: dict[str, int] = {
+    "lstm-serving": 8080,
+    "elasticsearch": 9200,
+    "kibana": 5601,
+}
+
+
+def browser_url(url: str) -> str:
+    """Rewrite a Compose-internal URL to one the host's browser can open.
+
+    Returns the URL unchanged when it does not name a known service, so a run
+    started outside Docker (already pointing at localhost) is unaffected.
+    """
+    for service, port in _SERVICE_TO_HOST_PORT.items():
+        if f"//{service}:" in url:
+            return url.replace(f"//{service}:", "//localhost:")
+        if f"//{service}/" in url or url.endswith(f"//{service}"):
+            return url.replace(f"//{service}", f"//localhost:{port}")
+    return url
+
+
 def rule(title: str = "", char: str = "=") -> None:
     """Print a titled separator."""
     if title:
@@ -188,7 +215,12 @@ def show_inference(outcome, window) -> None:
         pad = " (zero-pad)" if float(step.sum()) == 0.0 else ""
         print(f"  t-{4 - i:<2} " + " ".join(f"{v:>7.3f}" for v in step) + pad)
 
-    print(f"\n    request_id          : {outcome.inference.request_id}")
+    endpoint = outcome.trail.records[2].detail.get("endpoint", "")
+    print(f"\n    endpoint (called)   : {endpoint}")
+    if browser_url(endpoint) != endpoint:
+        print(f"    endpoint (browser)  : {browser_url(endpoint)}"
+              "   <- open this one on the host")
+    print(f"    request_id          : {outcome.inference.request_id}")
     print(f"    model               : {meta.get('model_name')} v{outcome.inference.model_version}")
     print(f"    inference_timestamp : {meta.get('inference_timestamp')}")
     print(f"    input  shape/count  : {meta.get('input_shape')} = "
@@ -374,6 +406,8 @@ def main() -> int:
     rule("MERIDIAN SENTINEL - complete transaction monitoring flow")
     print(f"  mode        : {mode}")
     print(f"  inference   : {base_url}")
+    if browser_url(base_url) != base_url:
+        print(f"                ({browser_url(base_url)} from a browser on the host)")
     print(f"  run at      : {datetime.now(tz=SYDNEY_TZ):%Y-%m-%d %H:%M:%S %Z}")
     print("\n  Stage order: received -> rules -> inference -> decision -> "
           "playbook\n               -> elasticsearch -> dashboard, audited at each step.")
@@ -402,17 +436,33 @@ def main() -> int:
         print(f"  {name:<12} {len(outcomes):>4}  {short:<14} "
               f"{lstm_max:>8.4f} {threat_max:>10.4f}  {verdict:<9}")
 
+    # -- browser URLs --------------------------------------------------------
+    # Everything above prints Compose-internal hostnames, because those are the
+    # endpoints actually called and recorded. None of them resolve from the
+    # host's browser, so the addresses that do are collected here in one block.
+    rule("OPEN THESE IN YOUR BROWSER  (host addresses, not the internal ones above)")
+    print(f"  React dashboard   : {'http://localhost:5173':<42} live transaction feed")
+    print(f"  Inference API     : {'http://localhost:8080/docs':<42} Swagger UI - call the model")
+    print(f"  Model status      : {'http://localhost:8080/v1/models/lstm':<42} version + threshold")
+    print(f"  Kibana Discover   : {'http://localhost:5601/app/discover':<42} set range to Last 24 hours")
+    print(f"  Elasticsearch     : {'http://localhost:9200':<42} needs elastic / $ELASTIC_PASSWORD")
+    print("\n  The pipeline calls the internal names (lstm-serving:8080,")
+    print("  elasticsearch:9200) because it runs inside the Compose network.")
+    print("  Those only resolve between containers - use the addresses above")
+    print("  from the host, or the browser reports DNS_PROBE_FINISHED_NXDOMAIN.")
+
     if args.write:
         index = f"meridian-transactions-{datetime.now(tz=timezone.utc):%Y.%m.%d}"
         audit_index = f"meridian-audit-{datetime.now(tz=timezone.utc):%Y.%m.%d}"
         print(f"\n  Indexed to    : {index}")
         print(f"  Audit trail   : {audit_index}  (+ logs/audit/*.jsonl)")
-        print("  Dashboard     : http://localhost:5173")
-        print("  Kibana        : http://localhost:5601/app/discover")
-        print("\n  Trace one transaction end to end by its correlation id:")
         first = next(iter(all_outcomes.values()))[-1]
-        print(f"    curl 'localhost:9200/meridian-audit-*/_search?q=correlation_id:"
-              f"\"{first.correlation_id}\"&sort=sequence:asc&pretty'")
+        print("\n  Trace one transaction end to end by its correlation id:")
+        print(f"    curl -u elastic:$ELASTIC_PASSWORD "
+              f"'http://localhost:9200/meridian-audit-*/_search"
+              f"?q=correlation_id:\"{first.correlation_id}\"&sort=sequence:asc&pretty'")
+        print("\n  Or in Kibana Discover, data view meridian-audit-*, query:")
+        print(f"    correlation_id : \"{first.correlation_id}\"")
     else:
         print("\n  Nothing was written. Re-run with --write to index it.")
     print()
