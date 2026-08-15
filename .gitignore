@@ -74,3 +74,8 @@ skills-lock.json
 # Kaggle API credentials — never commit
 kaggle.json
 .kaggle/
+
+# Audit trail JSONL sink — runtime output written by src/observability/audit.py
+# on every pipeline run. The durable copy lives in the meridian-audit-*
+# Elasticsearch index; these files are local scratch.
+logs/
