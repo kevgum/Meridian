@@ -38,13 +38,21 @@ function formatRuleEvidence(ruleId: string, evidence: Record<string, unknown>): 
         ? `${merchantId} — checked against ${size || 'the'} watchlisted merchant${size === 1 ? '' : 's'}`
         : 'No merchant on this transaction';
     }
+    case 'RULE_005': {
+      // Burst velocity reads the customer's run, not one transaction, so the
+      // evidence names both halves of the test: how many payments landed in
+      // the window, and what share of the opening balance they took together.
+      const count = num('transaction_count');
+      const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+      return `${count} transaction${count === 1 ? '' : 's'} in ${num('window_minutes')} min took ${money(num('cumulative_amount'))} of ${money(num('balance_before'))} — ${pct(num('balance_fraction'))} of balance, thresholds ${num('threshold_count')} txns and ${pct(num('threshold_fraction'))}`;
+    }
     default:
       return '';
   }
 }
 
 /**
- * The four fixed rules, one row each.
+ * The fixed rules, one row each — five of them since burst velocity was added.
  *
  * Every verdict is carried by three channels at once — icon, word and colour —
  * so a reader who cannot separate red from green still reads the row correctly.
@@ -105,7 +113,11 @@ function SecurityRules({ siemResult }: { siemResult: SIEMResult }) {
         }`}
       >
         <span className="font-semibold">
-          <span className="font-mono">{siemResult.triggeredCount}</span> of 4 rules broken.
+          {/* Counted from the rules actually returned, not hardcoded — the
+              engine grew from four rules to five when burst velocity was
+              added, and a fixed denominator silently went stale. */}
+          <span className="font-mono">{siemResult.triggeredCount}</span> of{' '}
+          {siemResult.rules.length || 5} rules broken.
         </span>{' '}
         {siemResult.triggeredCount === 0
           ? 'Every fixed check passed — nothing here looks wrong on the rules alone.'

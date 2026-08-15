@@ -301,7 +301,7 @@ export default function AlertQueue({ incident, transactions, onInvestigate, onTo
                 {Math.round(incident.lstmScore * 100)}%
               </p>
             </div>
-            <div title="How many of the four security rules were broken">
+            <div title="How many security rules were broken">
               <p className="u-label-muted">Rules</p>
               <p className="u-figure mt-1 text-base text-pass">
                 {Math.round(incident.siemScore * 100)}%

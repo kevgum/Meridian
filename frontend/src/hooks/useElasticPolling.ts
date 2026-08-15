@@ -29,6 +29,10 @@ const RULE_NAMES: Record<string, string> = {
   RULE_002: 'Impossible Geo-Velocity',
   RULE_003: 'Off-Hours Transaction',
   RULE_004: 'Watchlist Merchant',
+  // The only rule that reads more than the current transaction — it judges the
+  // customer's recent run, which is what catches a slow burn that every
+  // per-transaction rule above passes.
+  RULE_005: 'Burst Velocity',
 };
 
 /** Today's transaction index name, matching the backend's own UTC convention

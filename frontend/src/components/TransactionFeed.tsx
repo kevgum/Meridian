@@ -82,7 +82,7 @@ function TransactionRow({ tx }: { tx: Transaction }) {
               roughly one reader in twelve. */}
           <span
             className="mt-1 inline-flex items-center gap-1 text-micro font-semibold text-pass"
-            title="Passed all four security rules"
+            title="Passed every security rule"
           >
             <Check size={10} aria-hidden="true" />
             OK
