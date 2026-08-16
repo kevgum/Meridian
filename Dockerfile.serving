@@ -2,10 +2,21 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install torch (CPU-only, ~200 MB) for ONNX conversion + onnxruntime for serving
-RUN pip install --no-cache-dir \
-    torch==2.3.0+cpu \
-    --index-url https://download.pytorch.org/whl/cpu && \
+# Install torch (CPU-only) for ONNX conversion + onnxruntime for serving.
+#
+# PyTorch's own CPU wheel index (download.pytorch.org/whl/cpu) only publishes
+# x86_64 builds — installing from it on ARM (e.g. Oracle Cloud's free Ampere
+# A1 shape) fails with "no matching distribution found". The plain PyPI index
+# does carry CPU-only aarch64 wheels for torch (no CUDA variant exists for
+# aarch64 via pip regardless, so there is nothing to accidentally pull in),
+# so the fix is to only pin the x86-only index on x86.
+RUN ARCH="$(uname -m)" && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        pip install --no-cache-dir torch==2.3.0+cpu \
+            --index-url https://download.pytorch.org/whl/cpu; \
+    else \
+        pip install --no-cache-dir torch==2.3.0; \
+    fi && \
     pip install --no-cache-dir \
     onnx==1.16.1 \
     onnxruntime==1.18.0 \
