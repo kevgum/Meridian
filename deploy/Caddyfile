@@ -1,0 +1,88 @@
+# Caddy edge for the hosted deployment.
+#
+# Caddy is the ONLY container with published ports. Elasticsearch, Kibana and
+# the model server sit on the internal Compose network and are not reachable
+# from the internet except through the routes defined here.
+#
+# TLS is automatic: point a DNS A record at the server, set DOMAIN, and Caddy
+# provisions and renews a Let's Encrypt certificate on its own.
+
+{
+	email {$ACME_EMAIL}
+	# Uncomment to test against Let's Encrypt staging (avoids rate limits):
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# ---------------------------------------------------------------------
+	# /api/* -> Elasticsearch, READ ONLY
+	#
+	# The dashboard polls Elasticsearch directly. Two things have to be true
+	# for that to be safe on a public host:
+	#
+	#   1. The browser must never see the cluster password. Caddy injects the
+	#      Authorization header server-side, so credentials stay on the server.
+	#
+	#   2. The proxy must not be a remote-control for the cluster. Raw
+	#      Elasticsearch over HTTP accepts DELETE /index and POST _bulk. The
+	#      dashboard only ever issues GET (see useElasticPolling.ts), so
+	#      anything that is not GET/HEAD is refused here rather than forwarded.
+	#      Without this rule, one curl could drop every index.
+	# ---------------------------------------------------------------------
+	# Write methods are rejected before the proxy block is ever reached.
+	#
+	# The ordering here is load-bearing and was arrived at by testing, not by
+	# reading. Two earlier forms of this rule silently did nothing:
+	#   * `respond` with a top-level matcher — never fired, because `handle`
+	#     claimed the request first.
+	#   * a matcher defined inside a `route` block — did not match at all.
+	# Both let a DELETE straight through to Elasticsearch. Consecutive
+	# `handle` blocks are mutually exclusive and evaluated in written order,
+	# which is the behaviour this depends on: the rejection block is first,
+	# so a write never reaches the proxy below.
+	@api_write {
+		path /api/*
+		method POST PUT DELETE PATCH OPTIONS
+	}
+	handle @api_write {
+		respond "Read-only endpoint" 405
+	}
+
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy elasticsearch:9200 {
+			header_up Authorization "Basic {$ES_BASIC_AUTH}"
+			# Do not let a client smuggle its own credentials upstream.
+			header_up -Cookie
+		}
+	}
+
+	# ---------------------------------------------------------------------
+	# /kibana/* -> Kibana, behind its own login.
+	#
+	# Kibana has real authentication, so it is exposed as-is rather than with
+	# an injected header. Comment this block out to keep Kibana private.
+	# ---------------------------------------------------------------------
+	handle /kibana/* {
+		reverse_proxy kibana:5601
+	}
+
+	# ---------------------------------------------------------------------
+	# Everything else -> the built React dashboard.
+	# try_files gives the SPA its client-side routing.
+	# ---------------------------------------------------------------------
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

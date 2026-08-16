@@ -1,0 +1,29 @@
+# Builds the React dashboard and serves it from Caddy, which also terminates
+# TLS and proxies /api to Elasticsearch (see deploy/Caddyfile).
+#
+# Two stages so the Node toolchain never ships to the server: the final image
+# is Caddy plus the compiled static assets.
+
+# ---- build ------------------------------------------------------------------
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# Copy manifests first so `npm ci` is cached until dependencies actually change.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+
+# Vite reads VITE_* at build time and inlines them, so anything set here ends
+# up in the shipped JavaScript. Nothing secret goes in this stage — the
+# dashboard talks to relative /api paths and Caddy supplies the credentials.
+RUN npm run build
+
+# ---- serve ------------------------------------------------------------------
+FROM caddy:2-alpine
+
+COPY --from=build /app/dist /srv
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+
+EXPOSE 80 443

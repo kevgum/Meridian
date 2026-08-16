@@ -1,0 +1,46 @@
+# Long-running transaction stream for the hosted deployment.
+#
+# Runs scripts/live_stream.py forever: one transaction every few seconds,
+# scored by the real rule engine and the real served model, written to
+# Elasticsearch. This is what makes the deployed dashboard show live activity
+# rather than a static snapshot.
+#
+# Deliberately leaner than Dockerfile.dev — no pytest, flake8, mypy or torch.
+# The stream calls the model over HTTP, so it never needs torch itself; it
+# only needs the feature pipeline (pandas, numpy, scikit-learn) and clients.
+
+FROM python:3.11-slim
+
+# tzdata: ZoneInfo("Australia/Sydney") is used by the off-hours rule, and the
+# slim base strips /usr/share/zoneinfo.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tzdata curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir \
+    numpy==1.26.4 \
+    pandas==2.2.2 \
+    scikit-learn==1.5.0 \
+    requests==2.32.3 \
+    elasticsearch==8.11.0 \
+    tzdata==2024.1
+
+# Source is baked in rather than mounted — a deployed service should run the
+# code it was built with, not whatever happens to be on the server's disk.
+COPY src/ /app/src/
+COPY scripts/ /app/scripts/
+COPY models/feature_scaler.json /app/models/feature_scaler.json
+COPY watchlist/ /app/watchlist/
+COPY config/ /app/config/
+
+ENV PYTHONUNBUFFERED=1
+
+# The interval is configurable so a demo can be sped up or slowed down without
+# rebuilding. Defaults are gentler than the script's own 2-8s so a hosted
+# instance does not accumulate documents faster than anyone will look at them.
+ENV STREAM_INTERVAL_MIN=4
+ENV STREAM_INTERVAL_MAX=12
+
+CMD ["sh", "-c", "python -m scripts.live_stream --interval-min $STREAM_INTERVAL_MIN --interval-max $STREAM_INTERVAL_MAX"]

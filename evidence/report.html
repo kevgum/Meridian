@@ -1,0 +1,654 @@
+<meta charset="utf-8">
+<title>Meridian Sentinel — Implementation Report</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm; }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 10.5pt;
+    line-height: 1.62;
+    color: #1a1a1a;
+    margin: 0;
+  }
+
+  h1, h2, h3 { font-family: "Segoe UI", Helvetica, Arial, sans-serif; }
+
+  h2 {
+    font-size: 16pt; margin: 0 0 4pt; font-weight: 650;
+    border-bottom: 2px solid #0e7490; padding-bottom: 5pt;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 11.5pt; margin: 16pt 0 5pt; font-weight: 650; color: #0b3d4c;
+    page-break-after: avoid;
+  }
+  p { margin: 0 0 9pt; text-align: justify; }
+  ul, ol { margin: 0 0 9pt; padding-left: 17pt; }
+  li { margin-bottom: 4pt; }
+
+  code {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 9pt; background: #eef2f4; padding: 0 3px; border-radius: 2px;
+  }
+
+  .sec { page-break-before: always; padding-top: 2pt; }
+
+  /* ---- title page ---- */
+  .title {
+    height: 245mm; display: flex; flex-direction: column; justify-content: center;
+    text-align: center;
+  }
+  .title .rule { width: 60pt; height: 3pt; background: #0e7490; margin: 0 auto 22pt; }
+  .title h1 { font-size: 30pt; margin: 0 0 6pt; font-weight: 650; letter-spacing: -0.5pt; }
+  .title .sub { font-size: 13pt; color: #444; margin: 0 0 34pt; font-style: italic; }
+  .title .meta { font-size: 10.5pt; color: #333; line-height: 2; }
+  .title .meta b { font-family: "Segoe UI", sans-serif; font-size: 9.5pt;
+                   letter-spacing: .5pt; text-transform: uppercase; color: #666; }
+
+  /* ---- figures ---- */
+  figure { margin: 12pt 0 14pt; page-break-inside: avoid; }
+  figure img {
+    width: 100%; border: 1px solid #c8d2d8; border-radius: 3px; display: block;
+  }
+  figcaption {
+    font-family: "Segoe UI", sans-serif; font-size: 8.5pt; color: #4a5560;
+    margin-top: 5pt; line-height: 1.45;
+  }
+  figcaption b { color: #0b3d4c; }
+
+  /* ---- tables ---- */
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 10pt 0 12pt;
+          font-family: "Segoe UI", sans-serif; page-break-inside: avoid; }
+  th { background: #e3eaee; text-align: left; padding: 5pt 7pt;
+       border-bottom: 1.5pt solid #b4c2ca; font-size: 8pt; text-transform: uppercase;
+       letter-spacing: .4pt; }
+  td { padding: 5pt 7pt; border-bottom: 0.7pt solid #dde4e9; vertical-align: top; }
+  .num { text-align: right; font-variant-numeric: tabular-nums;
+         font-family: Consolas, monospace; }
+
+  /* ---- callouts ---- */
+  .box { padding: 9pt 12pt; margin: 11pt 0; border-left: 3pt solid #0e7490;
+         background: #eef6f8; page-break-inside: avoid; }
+  .box.warn { border-left-color: #a16207; background: #fdf6e7; }
+  .box.bad  { border-left-color: #b91c1c; background: #fcecec; }
+  .box p:last-child { margin-bottom: 0; }
+  .box .lbl { font-family: "Segoe UI", sans-serif; font-size: 8pt; font-weight: 700;
+              letter-spacing: .8pt; text-transform: uppercase; display: block;
+              margin-bottom: 3pt; color: #0b3d4c; }
+  .box.warn .lbl { color: #8a5a06; }
+  .box.bad .lbl  { color: #a01414; }
+
+  .lead { font-size: 11pt; color: #333; font-style: italic; margin-bottom: 12pt; }
+  .toc li { margin-bottom: 5pt; }
+</style>
+
+<!-- ============================ TITLE ============================ -->
+<div class="title">
+  <div class="rule"></div>
+  <h1>Meridian Sentinel</h1>
+  <p class="sub">A hybrid fraud-detection prototype — what I built, and what actually happened</p>
+  <div class="meta">
+    <b>Unit</b><br>ITW601 &mdash; Capstone Project<br><br>
+    <b>Implementation report and evidence</b><br>
+    Rule engine &middot; LSTM inference &middot; Elasticsearch &middot; React console
+  </div>
+</div>
+
+<!-- ============================ INTRO ============================ -->
+<div class="sec">
+<h2>1. What this project is</h2>
+
+<p class="lead">Short version: two detectors look at every payment, their scores get blended
+into one number, and if that number crosses 0.70 the system locks the account by itself.</p>
+
+<p>Meridian Sentinel is a fraud-detection prototype for a fictional Australian bank. The
+idea is that neither detection approach is good enough alone. Fixed rules are fast and you
+can explain them to an auditor, but a fraudster who knows the rules can stay under them. A
+neural network picks up patterns nobody wrote down, but it can't tell you why, which is a
+problem when you're about to freeze somebody's account. So I ran both and combined them:</p>
+
+<p style="text-align:center; font-family:Consolas,monospace; font-size:11pt; margin:12pt 0;">
+threat_score = (LSTM &times; 0.60) + (SIEM rules &times; 0.40)</p>
+
+<p>Anything at 0.70 or above fires an automated playbook &mdash; account locked, incident
+case opened, analyst notified. Anything below is still scored and logged, it just doesn't
+trigger containment. The 60/40 split gives the model more weight because it's the half that
+can catch something new, but the rules still get enough weight to drag a score up on their own.</p>
+
+<h3>What's actually running</h3>
+<p>Everything in this report runs in Docker on my machine. Five services: Elasticsearch,
+Kibana, Logstash, the model server, and a dev container I run the pipeline from. The React
+dashboard runs separately with <code>npm run dev</code>. Every number and screenshot in here
+came from executing that stack, not from a mock-up.</p>
+
+<table>
+  <tr><th>Component</th><th>What it does</th><th>Status</th></tr>
+  <tr><td>SIEM rule engine</td><td>5 deterministic rules</td><td>Working</td></tr>
+  <tr><td>LSTM model</td><td>Behavioural scoring, ONNX + FastAPI</td><td>Working</td></tr>
+  <tr><td>Hybrid scorer</td><td>Blends both, applies threshold</td><td>Working</td></tr>
+  <tr><td>Playbook engine</td><td>Incident + notification on FLAGGED</td><td>Working</td></tr>
+  <tr><td>Elasticsearch</td><td>Transactions, incidents, audit trail</td><td>Working</td></tr>
+  <tr><td>React dashboard</td><td>Live analyst console</td><td>Working</td></tr>
+  <tr><td>Audit trail</td><td>8 stages per transaction</td><td>Working</td></tr>
+</table>
+</div>
+
+<!-- ============================ MODEL ============================ -->
+<div class="sec">
+<h2>2. The model</h2>
+
+<p>It's a stacked LSTM: 128 units, dropout 0.30, then 64 units, dropout again, then a single
+linear output through a sigmoid. Input is a 5&times;13 tensor &mdash; five transactions,
+thirteen engineered features each. Output is one number between 0 and 1.</p>
+
+<p>Training data is PaySim, a synthetic dataset of ~6.36 million mobile money transactions.
+I trained in Colab for 35 epochs with a WeightedRandomSampler to deal with the class
+imbalance, then exported to ONNX and served it with FastAPI.</p>
+
+<table>
+  <tr><th>Metric</th><th class="num">Result</th><th class="num">Target</th><th>Met?</th></tr>
+  <tr><td>Detection accuracy</td><td class="num">99.96%</td><td class="num">&ge; 98.55%</td><td>Yes</td></tr>
+  <tr><td>False positive rate</td><td class="num">0.034%</td><td class="num">&le; 0.50%</td><td>Yes</td></tr>
+  <tr><td>Recall</td><td class="num">93.54%</td><td class="num">&mdash;</td><td>&mdash;</td></tr>
+  <tr><td>Precision</td><td class="num">78.02%</td><td class="num">&mdash;</td><td>&mdash;</td></tr>
+  <tr><td>Decision threshold</td><td class="num">0.90</td><td class="num">&mdash;</td><td>&mdash;</td></tr>
+</table>
+
+<h3>Scaling is part of the model</h3>
+
+<p>One design decision is worth explaining because it's easy to get wrong and it's invisible
+when it is. All thirteen features are MinMax-scaled into [0, 1] before the model sees them,
+and the scaler that does it has to be the <em>training</em> one.</p>
+
+<p>The temptation is to fit a fresh scaler on whatever batch you're currently scoring. That
+runs without error and returns plausible-looking numbers, but the range comes from that
+batch's own extremes rather than the range the network learned, so an identical transaction
+scores differently depending on what it happened to be sent alongside. The answers come back
+confidently wrong rather than obviously broken, which is the worst failure mode to debug.</p>
+
+<p>So training writes its fitted scaler to <code>models/feature_scaler.json</code>, and
+inference loads that same file every time. Two of the ratio features are also clipped to
+<code>[0, 5]</code> before scaling, because both divide by the origin balance and a
+zero-balance account &mdash; common in PaySim &mdash; otherwise produces an enormous outlier
+that stretches the fitted range and squashes every real value toward zero. Clipping bounds
+them by construction, so training and serving see the same range without a separate threshold
+to keep in sync.</p>
+
+<div class="box">
+  <span class="lbl">Why this matters for the audit trail</span>
+  <p>Because the same scaler is used at both ends, the same transaction always produces the
+  same tensor and therefore the same score. That reproducibility is what makes a stored score
+  defensible &mdash; an examiner can re-run a decision and get the number that's in the
+  record.</p>
+</div>
+
+<h3>The 13 features</h3>
+
+<p>Twelve are engineered directly from the PaySim columns &mdash; amounts, balances on both
+sides of the transfer, transaction type and timing. The thirteenth,
+<code>geo_velocity_kmh</code>, is <b>synthesised</b>, because PaySim carries no location
+columns and the model needed a location signal. It is constructed from an assigned per-customer
+home city and biased toward balance-draining transfers, deliberately using observable
+transaction properties rather than the fraud label itself &mdash; a feature derived from the
+label cannot be reproduced at serving time, when the label is what the model is predicting.
+The construction is documented in <code>synthesize_geo_velocity()</code> and in the model
+card.</p>
+
+<figure>
+  <img src="screenshots/21-thirteen-features.png" alt="All 13 trained features">
+  <figcaption><b>Figure 1.</b> Every feature with its training range and the value it took for
+  a real legitimate and a real fraudulent transaction. Red rows are the ones that actually
+  separate the two cases. Note rows 7 and 8 &mdash; their training range is [1, 2], which
+  means they carry almost no information (explained in section 6).</figcaption>
+</figure>
+</div>
+
+<!-- ============================ HISTORY ============================ -->
+<div class="sec">
+<h2>3. Where behavioural history comes from</h2>
+
+<p>Both detectors need more than the payment in front of them. The model scores a
+five-transaction window, and Rule 5 measures a burst against the balance the customer held
+when the window opened. Something has to supply that history, and the choice of <em>what</em>
+supplies it turned out to matter more than I expected.</p>
+
+<h3>The memory-cache option</h3>
+
+<p>My original architecture put a Redis cache in this position, holding each customer's last
+five transactions in memory so the feature builder could read them in under a millisecond
+instead of querying the datastore every time. On latency alone it is the better design.</p>
+
+<div class="box warn">
+  <span class="lbl">Design decision</span>
+  <p><b>Redis memory cache &mdash; proposed architecture component, not used in the final
+  implementation.</b></p>
+  <p style="margin-top:6pt">Excluded to avoid cached or stale behavioural context affecting
+  the consistency and reproducibility of LSTM inference. The final implementation obtains the
+  required behavioural history directly from the authoritative transaction data source.</p>
+</div>
+
+<p>The reasoning is the same one behind reusing the training scaler. Those five transactions
+do not sit beside the model input &mdash; they <em>are</em> the model input. If the cache is
+even slightly behind the authoritative data, whether through a write that has not landed, an
+eviction under memory pressure, or a stale entry, then the same transaction scored twice
+produces two different tensors and therefore two different scores, with nothing in the record
+to indicate which one was correct.</p>
+
+<p>For a system whose main claim is an audit trail an examiner can reconstruct, a score that
+cannot be reproduced is worth less than a score that took longer to compute. So the cache came
+out.</p>
+
+<h3>What replaced it</h3>
+
+<p><code>attach_history()</code> walks a customer's transactions in strict time order and gives
+each one only the transactions that genuinely preceded it &mdash; no cache, and no lookahead
+onto payments that had not happened yet at that moment. The window handed to the model is then
+rebuilt from that authoritative data by <code>build_windows()</code>, scaled with the stored
+training scaler. The same transaction therefore always produces the same tensor, and the same
+score.</p>
+
+<p>The same design keeps the rule engine stateless. Rule 5 needs a customer's recent run, but
+the correlator holds no state of its own &mdash; the caller passes the history in, exactly as
+it passes Rule 2 the previous transaction's coordinates. Every rule remains a pure function of
+its inputs, which is what makes a rule verdict reproducible from the stored evidence alone.</p>
+
+<figure>
+  <img src="screenshots/04-redis-not-implemented.png" alt="Behavioural history implementation">
+  <figcaption><b>Figure 2.</b> The implemented path. Redis is not a service in
+  <code>docker-compose.yml</code> and is not referenced in the source; underneath is
+  <code>attach_history()</code>, the code that actually supplies each transaction with the
+  history that preceded it.</figcaption>
+</figure>
+</div>
+
+<!-- ============================ RULES ============================ -->
+<div class="sec">
+<h2>4. The rules</h2>
+
+<p>Five rules, all deterministic. Rules 1&ndash;4 look at one transaction on its own. Rule 5
+is the odd one out &mdash; it reads the customer's recent run, which is what lets it catch
+something the others structurally can't.</p>
+
+<table>
+  <tr><th>Rule</th><th>Condition</th><th>Severity</th></tr>
+  <tr><td>RULE_001</td><td>Amount over $10,000</td><td>HIGH</td></tr>
+  <tr><td>RULE_002</td><td>Geo-velocity above 500 km/h between consecutive transactions</td><td>HIGH</td></tr>
+  <tr><td>RULE_003</td><td>Outside 08:00&ndash;22:00 Sydney time</td><td>MEDIUM</td></tr>
+  <tr><td>RULE_004</td><td>Merchant on the watchlist</td><td>HIGH</td></tr>
+  <tr><td>RULE_005</td><td>5+ transactions in 120 min taking 20%+ of the balance</td><td>MEDIUM</td></tr>
+</table>
+
+<p>The rule score is normalised by how many fired: none is 0.00, one is 0.33, two is 0.67,
+three or more is 1.00. That caps the rules at 0.40 of the final score, which matters &mdash;
+even if all five fire, the rules alone give 1.00 &times; 0.40 = 0.40, nowhere near the 0.70
+line. Rules can't lock an account by themselves. That's deliberate.</p>
+
+<figure>
+  <img src="screenshots/05-rule-engine.png" alt="Rule engine evaluating a transaction">
+  <figcaption><b>Figure 3.</b> All five rules evaluated against one transaction, with the
+  evidence behind each one that fired. Four fail here, giving a rule score of 1.00.</figcaption>
+</figure>
+
+<h3>Why Rule 5 exists</h3>
+
+<p>Rules 1&ndash;4 share a blind spot. Someone making six small purchases over an afternoon
+passes every single-transaction check &mdash; each payment is small, in business hours, in one
+city, at a merchant nobody has watchlisted. Together they can still drain a fifth of the
+account. Rules 1&ndash;4 can't see that, because each one only ever looks at a single row.</p>
+
+<p>Rule 5 is the only rule that reads more than the current transaction. The correlator itself
+stays stateless &mdash; the caller passes in the customer's recent run, the same way Rule 2 is
+handed the previous transaction's coordinates &mdash; so the rule engine holds no state of its
+own but can still reason about a sequence.</p>
+
+<figure>
+  <img src="screenshots/07-lstm-behaviour-analysis.png" alt="Rule 5 catching a burst">
+  <figcaption><b>Figure 4.</b> Rule 5 in action. Eight payments scored as they arrive &mdash;
+  rules 1&ndash;4 pass on every single one. On the sixth payment Rule 5 fires: six
+  transactions inside the 120-minute window taking 20.79% of the opening balance.</figcaption>
+</figure>
+
+<p>Note the outcome is MONITOR, not FLAGGED. One rule firing gives a rule score of 0.33, which
+contributes 0.132 to the blended total &mdash; well below the line. That is the intended
+behaviour: locking an account because somebody made six purchases in an afternoon would be a
+bad false positive. Rule 5's job is to put the pattern in front of an analyst with its
+evidence attached, not to freeze the account by itself.</p>
+</div>
+
+<!-- ============================ DOCKER ============================ -->
+<div class="sec">
+<h2>5. Running it &mdash; the Docker stack</h2>
+
+<p>The whole system is containerised, so bringing it up is one command. Everything except the
+React dashboard runs as a Docker Compose service, and the dashboard is a Vite dev server I
+start separately.</p>
+
+<h3>Start everything</h3>
+
+<p style="font-family:Consolas,monospace; font-size:9pt; background:#f2f5f7; padding:8pt 10pt;
+border-left:3pt solid #0e7490; margin:8pt 0">
+cd Meridaian<br>
+docker compose up -d</p>
+
+<p>Then wait for the healthchecks. This matters more than it sounds &mdash; Elasticsearch and
+the model server both declare healthchecks, and the dev container depends on them being
+<em>healthy</em> rather than merely started. On a cold start Elasticsearch and the model server
+take about 50 seconds; Kibana needs roughly 40 seconds more before its UI will load.</p>
+
+<p style="font-family:Consolas,monospace; font-size:9pt; background:#f2f5f7; padding:8pt 10pt;
+border-left:3pt solid #0e7490; margin:8pt 0">docker compose ps</p>
+
+<figure>
+  <img src="screenshots/22-docker-stack.png" alt="Docker stack running">
+  <figcaption><b>Figure 5.</b> The stack starting and every service reporting healthy with its
+  published port, plus what each container is for and which images they run.</figcaption>
+</figure>
+
+<h3>The services</h3>
+
+<table>
+  <tr><th>Service</th><th>Port</th><th>What it does</th></tr>
+  <tr><td><code>elasticsearch</code></td><td class="num">9200</td>
+      <td>Transactions, incidents, notifications, audit trail</td></tr>
+  <tr><td><code>kibana</code></td><td class="num">5601</td>
+      <td>Search UI over those indices</td></tr>
+  <tr><td><code>logstash</code></td><td class="num">5000</td>
+      <td>ECS ingestion pipeline with SHA-256 PII hashing</td></tr>
+  <tr><td><code>lstm-serving</code></td><td class="num">8080</td>
+      <td>ONNX Runtime + FastAPI model server</td></tr>
+  <tr><td><code>feature-engineering</code></td><td class="num">&mdash;</td>
+      <td>One-shot feature pipeline job</td></tr>
+  <tr><td><code>dev</code></td><td class="num">&mdash;</td>
+      <td>Profile <code>dev</code> &mdash; runs the pipeline, tests and scripts</td></tr>
+</table>
+
+<p><code>lstm-serving</code> is the only image I build rather than pull. It installs a CPU-only
+torch plus onnxruntime, mounts the trained checkpoint read-only, and converts the PyTorch
+<code>.pt</code> to ONNX on startup if the <code>.onnx</code> file isn't already there. The
+ONNX file is gitignored deliberately &mdash; it's a build artifact regenerated from the
+committed checkpoint, not source.</p>
+
+<h3>Start the dashboard</h3>
+
+<p style="font-family:Consolas,monospace; font-size:9pt; background:#f2f5f7; padding:8pt 10pt;
+border-left:3pt solid #0e7490; margin:8pt 0">
+cd frontend<br>
+npm run dev&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#5f6f7d"># http://localhost:5173</span></p>
+
+<h3>Run a transaction through</h3>
+
+<p>Everything runs inside the dev container so it picks up the project's dependencies and can
+reach the other services by their Compose names:</p>
+
+<p style="font-family:Consolas,monospace; font-size:9pt; background:#f2f5f7; padding:8pt 10pt;
+border-left:3pt solid #0e7490; margin:8pt 0">
+docker compose --profile dev run --rm \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-e ELASTIC_HOST=http://elasticsearch:9200 \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;dev python -m scripts.end_to_end_demo --write</p>
+
+<div class="box warn">
+  <span class="lbl">Two things that catch people out</span>
+  <p><b>The <code>ELASTIC_HOST</code> override is required.</b> Inside the dev container,
+  <code>localhost</code> is the container itself, not Elasticsearch. Compose puts every service
+  on one network where they resolve each other by service name, so from inside it's
+  <code>http://elasticsearch:9200</code>. Drop that flag and the write fails.</p>
+  <p style="margin-top:6pt"><b>Those hostnames only work between containers.</b> The pipeline
+  logs <code>http://lstm-serving:8080</code> because that's genuinely the endpoint it called,
+  but a browser on the host can't resolve it. From the host you use the published ports &mdash;
+  <code>localhost:8080</code>, <code>localhost:9200</code>, <code>localhost:5601</code>.</p>
+</div>
+
+<h3>Tests and shutdown</h3>
+
+<p style="font-family:Consolas,monospace; font-size:9pt; background:#f2f5f7; padding:8pt 10pt;
+border-left:3pt solid #0e7490; margin:8pt 0">
+docker compose --profile dev run --rm dev pytest tests/ -v<br>
+docker compose down</p>
+
+<p><code>docker compose down</code> stops the containers but leaves the named volume
+<code>es_data</code> alone, so indexed transactions survive a restart. Adding <code>-v</code>
+would wipe it, which is why I don't.</p>
+</div>
+
+<!-- ============================ WALKTHROUGH ============================ -->
+<div class="sec">
+<h2>6. Following one transaction all the way through</h2>
+
+<p>This is the part that proves the system is joined up rather than five components that
+happen to sit in the same repository. I gave every transaction a correlation ID at the moment
+it arrives, and that ID is stamped on every record after it.</p>
+
+<p>The transaction: <b>CUST-24417</b>, A$18,169.80, a TRANSFER that empties the account, to a
+watchlisted merchant in Perth when the previous transaction was in Sydney minutes earlier,
+at 22:15.</p>
+
+<h3>Stage 1 &mdash; rules</h3>
+<p>Four of five fire. Rule score 1.00. On its own that only contributes 0.40.</p>
+
+<h3>Stage 2 &mdash; model</h3>
+<p>The five-transaction window is built, scaled with the training scaler, and sent to the
+model server as a <code>[1, 5, 13]</code> tensor. It comes back at <b>0.9999</b>.</p>
+
+<figure>
+  <img src="screenshots/06-lstm-inference.png" alt="LSTM inference call">
+  <figcaption><b>Figure 6.</b> The actual inference call &mdash; the input tensor row by row,
+  the request ID, model version, latency, and the score. Note the block explaining that
+  "input/output tokens" don't apply here (section 7).</figcaption>
+</figure>
+
+<h3>Stage 3 &mdash; blend and decide</h3>
+<p>0.9999 &times; 0.60 + 1.00 &times; 0.40 = <b>0.9999</b>. Over 0.70, so FLAGGED. The playbook
+fires for real: an incident record with a UUID, severity CRITICAL, action LOCK_ACCOUNT,
+written to Elasticsearch along with an analyst notification.</p>
+
+<figure>
+  <img src="screenshots/10-suspicious-playbook.png" alt="Playbook firing">
+  <figcaption><b>Figure 7.</b> The playbook firing and the incident document it wrote.</figcaption>
+</figure>
+
+<h3>Stage 4 &mdash; the analyst sees it</h3>
+
+<figure>
+  <img src="screenshots/20-react-dashboard-transaction.png" alt="Dashboard investigation drawer">
+  <figcaption><b>Figure 8.</b> The case drawer in the React console. The score arithmetic is
+  shown on screen rather than hidden &mdash; behaviour 1.00 &times; 0.60 plus rules
+  1.00 &times; 0.40 &mdash; along with the transaction timeline and the action taken.</figcaption>
+</figure>
+
+<h3>Stage 5 &mdash; the audit trail</h3>
+
+<p>Eight stages recorded against that one correlation ID. This is the bit that makes the
+whole thing defensible: given an ID, you can reconstruct every decision, including which
+model version produced the score and how long each step took.</p>
+
+<figure>
+  <img src="screenshots/19-kibana-audit-trail.png" alt="Kibana audit trail">
+  <figcaption><b>Figure 9.</b> All eight stages in Kibana, filtered to one correlation ID
+  &mdash; received, rules evaluated, inference requested, inference received, decision
+  generated, playbook fired, indexed, dashboard updated.</figcaption>
+</figure>
+
+<figure>
+  <img src="screenshots/15-end-to-end-flow.png" alt="End to end trace">
+  <figcaption><b>Figure 10.</b> The same journey as one diagram, with the real values.</figcaption>
+</figure>
+
+<h3>And the same thing for a legitimate payment</h3>
+
+<figure>
+  <img src="screenshots/11-safe-transaction.png" alt="Safe transaction">
+  <figcaption><b>Figure 11.</b> A$50.00 at a service station. Every rule passes, the model
+  scores 0.0000, blended score 0.0000, verdict MONITOR, no incident created.</figcaption>
+</figure>
+</div>
+
+<!-- ============================ TOKENS ============================ -->
+<div class="sec">
+<h2>7. Model inputs and outputs</h2>
+
+<p>The model consumes a fixed numerical tensor and returns a single number, so the measure
+of what crosses the inference boundary is the element count of those tensors. Both are
+instrumented and reported by the API on every call:</p>
+
+<table>
+  <tr><th>&nbsp;</th><th>Name</th><th>Shape</th><th class="num">Elements</th></tr>
+  <tr><td>Input</td><td><code>transaction_sequence</code></td><td>[1, 5, 13]</td><td class="num">65 float32</td></tr>
+  <tr><td>Output</td><td><code>anomaly_logit</code></td><td>[1, 1]</td><td class="num">1 scalar</td></tr>
+</table>
+
+<p>Those names and shapes are read from the loaded ONNX graph at runtime rather than hardcoded,
+so they can't drift away from whatever model is actually being served.</p>
+
+<figure>
+  <img src="screenshots/16-model-status-inference-log.png" alt="Model status endpoint">
+  <figcaption><b>Figure 12.</b> The model status endpoint reporting its own tensor geometry,
+  and a rolling log of every inference it has served with element counts and latency.</figcaption>
+</figure>
+</div>
+
+<!-- ============================ STORAGE ============================ -->
+<div class="sec">
+<h2>8. Storage and the dashboard</h2>
+
+<p>Every transaction is written to Elasticsearch carrying the same facts in two shapes within
+one document: flat fields (<code>amount</code>, <code>merchant_name</code>,
+<code>lstm_score</code>) that the React dashboard reads directly, and nested ECS fields
+(<code>transaction.*</code>, <code>source.geo.*</code>, <code>event.*</code>) that Kibana
+aggregates on. Two consumers, two expectations about field layout, one write &mdash; writing
+only one shape leaves the other reading an index it can't interpret.</p>
+
+<figure>
+  <img src="screenshots/18-kibana-discover-transaction.png" alt="Kibana transaction">
+  <figcaption><b>Figure 13.</b> The transaction in Kibana, found by correlation ID. The
+  sidebar shows all 38 indexed fields, including the <code>inference.*</code> fields that tie
+  the stored score back to the exact model call.</figcaption>
+</figure>
+
+<figure>
+  <img src="screenshots/12-react-dashboard.png" alt="React dashboard">
+  <figcaption><b>Figure 14.</b> The dashboard reading live from Elasticsearch. I removed all
+  the mock data during development &mdash; if the cluster is empty it shows an empty state
+  rather than fake rows.</figcaption>
+</figure>
+</div>
+
+<!-- ============================ CLOSING ============================ -->
+<div class="sec">
+<h2>9. Future work</h2>
+
+<p>The prototype does what it set out to do. These are the directions I would take it next.</p>
+
+<ol>
+  <li><b>Train on richer transaction histories.</b> The architecture already supports a
+  five-transaction window. A dataset with longer per-customer sequences would let the model
+  learn patterns that build across several payments, rather than scoring each one on its own
+  merits. That is a data question rather than a code change &mdash; the pipeline is already
+  shaped for it.</li>
+
+  <li><b>Add feature-level explainability.</b> The console reports a score and the rules
+  behind a decision, but not which individual features moved the model. Adding SHAP would let
+  an analyst see the exact contribution of each of the thirteen inputs, which is the natural
+  next step for a system where a human has to sign off on the outcome.</li>
+
+  <li><b>Route the live path through Logstash.</b> The ECS pipeline is written, deployed and
+  working, including SHA-256 hashing of personally identifying fields. Moving the demonstrated
+  path onto it would exercise the ingestion tier under the same load as the rest of the
+  system.</li>
+
+  <li><b>Enforce TLS across services.</b> The TLS 1.3 configuration and certificate generation
+  script are in the repository. Turning enforcement on across every service URL and healthcheck
+  is the remaining step toward the PCI DSS network posture the design targets.</li>
+
+  <li><b>Extend the rule set.</b> Rule 5 showed the value of a rule that reads a customer's
+  recent run rather than one payment. The same shape could cover other multi-transaction
+  patterns &mdash; escalating amounts, unusual merchant sequences, dormant accounts waking
+  up.</li>
+</ol>
+
+<div class="box">
+  <span class="lbl">Reproducing this</span>
+  <p style="font-family:Consolas,monospace; font-size:8.5pt; line-height:1.55">
+  docker compose up -d<br>
+  docker compose --profile dev run --rm \<br>
+  &nbsp;&nbsp;&nbsp;&nbsp;-e ELASTIC_HOST=http://elasticsearch:9200 \<br>
+  &nbsp;&nbsp;&nbsp;&nbsp;dev python -m scripts.end_to_end_demo --write</p>
+  <p style="margin-top:7pt">That runs all three scenarios and prints every stage. The
+  screenshots in this report came from that command and from the running dashboard, Kibana and
+  model server.</p>
+</div>
+</div>
+
+<!-- ============================ APPENDIX ============================ -->
+<div class="sec">
+<h2>Appendix &mdash; full evidence set</h2>
+
+<p>All screenshots, captured from the running system. Each carries its own explanation.
+The figures above are a selection; these are the complete set in order.</p>
+
+<table>
+  <tr><th>#</th><th>Screenshot</th><th>Shows</th></tr>
+  <tr><td>01</td><td>transaction-ingestion</td><td>Transaction enters, gets a correlation ID</td></tr>
+  <tr><td>02</td><td>data-ingestion-normalisation</td><td>Flat + nested ECS document shapes</td></tr>
+  <tr><td>03</td><td>feature-engineering</td><td>History becomes a 5&times;13 scaled tensor</td></tr>
+  <tr><td>04</td><td>redis-not-implemented</td><td>Behavioural history read from authoritative data</td></tr>
+  <tr><td>05</td><td>rule-engine</td><td>All 5 rules with evidence</td></tr>
+  <tr><td>06</td><td>lstm-inference</td><td>The model call and its metadata</td></tr>
+  <tr><td>07</td><td>lstm-behaviour-analysis</td><td>Slow burn scored payment by payment</td></tr>
+  <tr><td>08</td><td>hybrid-threat-score</td><td>The 60/40 blend</td></tr>
+  <tr><td>09</td><td>final-verdict</td><td>Verdict against the threshold</td></tr>
+  <tr><td>10</td><td>suspicious-playbook</td><td>Incident created, account locked</td></tr>
+  <tr><td>11</td><td>safe-transaction</td><td>Legitimate payment, no incident</td></tr>
+  <tr><td>12</td><td>react-dashboard</td><td>Live console</td></tr>
+  <tr><td>13</td><td>elasticsearch-event</td><td>Stored document + all indices</td></tr>
+  <tr><td>14</td><td>audit-logs</td><td>8-stage trail</td></tr>
+  <tr><td>15</td><td>end-to-end-flow</td><td>Whole pipeline, one ID</td></tr>
+  <tr><td>16</td><td>model-status-inference-log</td><td>Tensor geometry + served calls</td></tr>
+  <tr><td>17</td><td>elasticsearch-browser</td><td>Document via the REST API</td></tr>
+  <tr><td>18</td><td>kibana-discover-transaction</td><td>Transaction in Kibana</td></tr>
+  <tr><td>19</td><td>kibana-audit-trail</td><td>Audit trail in Kibana</td></tr>
+  <tr><td>20</td><td>react-dashboard-transaction</td><td>Case investigation drawer</td></tr>
+  <tr><td>21</td><td>thirteen-features</td><td>Every feature with live values</td></tr>
+</table>
+
+<figure>
+  <img src="screenshots/01-transaction-ingestion.png" alt="Transaction ingestion">
+  <figcaption><b>A1.</b> Transaction entering the pipeline.</figcaption>
+</figure>
+
+<figure>
+  <img src="screenshots/03-feature-engineering.png" alt="Feature engineering">
+  <figcaption><b>A2.</b> Raw history converted to the model input tensor.</figcaption>
+</figure>
+
+<figure>
+  <img src="screenshots/08-hybrid-threat-score.png" alt="Hybrid score">
+  <figcaption><b>A3.</b> The blend, with real runtime values.</figcaption>
+</figure>
+
+<figure>
+  <img src="screenshots/09-final-verdict.png" alt="Final verdict">
+  <figcaption><b>A4.</b> Final verdict against the 0.70 threshold.</figcaption>
+</figure>
+
+<figure>
+  <img src="screenshots/14-audit-logs.png" alt="Audit logs">
+  <figcaption><b>A5.</b> The audit trail as stored, with per-stage timings.</figcaption>
+</figure>
+
+<figure>
+  <img src="screenshots/17-elasticsearch-browser.png" alt="Elasticsearch REST">
+  <figcaption><b>A6.</b> The stored document retrieved from Elasticsearch.</figcaption>
+</figure>
+
+<figure>
+  <img src="screenshots/02-data-ingestion-normalisation.png" alt="Normalisation">
+  <figcaption><b>A7.</b> Normalisation into both document shapes.</figcaption>
+</figure>
+
+<figure>
+  <img src="screenshots/13-elasticsearch-event.png" alt="Elasticsearch indices">
+  <figcaption><b>A8.</b> Stored document and every Meridian index in the cluster.</figcaption>
+</figure>
+</div>

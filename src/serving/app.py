@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import uuid
@@ -9,6 +10,7 @@ import numpy as np
 import onnxruntime as ort
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Any, Deque, Dict, List, Optional
 
@@ -127,7 +129,7 @@ def _element_count(shape: list) -> int:
 
 
 @app.get("/v1/models/lstm")
-def model_status(limit: int = 20):
+def model_status(limit: int = 20, pretty: Optional[str] = None):
     """Model status, tensor sizes, and a log of what this server has scored.
 
     Tensor shapes are read from the loaded ONNX graph rather than hardcoded, so
@@ -136,6 +138,12 @@ def model_status(limit: int = 20):
     Args:
         limit: how many recent inferences to include (newest first). Use 0 to
                omit the log and return status only.
+        pretty: return indented text/plain instead of compact JSON. Follows
+                Elasticsearch's own ``?pretty`` convention, including accepting
+                the bare flag with no value — a browser shows this endpoint as
+                one unreadable line otherwise, which makes it useless for
+                inspecting the inference log by eye. Accepts ``?pretty``,
+                ``?pretty=true`` and ``?pretty=1``; anything else is false.
     """
     if session is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
@@ -145,7 +153,7 @@ def model_status(limit: int = 20):
     in_shape = _normalise_shape(inp.shape)
     out_shape = _normalise_shape(out.shape)
 
-    return {
+    body = {
         "model_version_status": [
             {"version": "1", "state": "AVAILABLE", "threshold": THRESHOLD}
         ],
@@ -202,6 +210,11 @@ def model_status(limit: int = 20):
                      "each audit entry carries the request_id shown here.",
         },
     }
+
+    # "" is what a bare ?pretty flag arrives as.
+    if pretty is not None and pretty.lower() in ("", "true", "1", "yes"):
+        return PlainTextResponse(json.dumps(body, indent=2))
+    return body
 
 
 @app.post("/v1/models/lstm:predict", response_model=PredictResponse)
