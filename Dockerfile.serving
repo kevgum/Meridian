@@ -43,5 +43,14 @@ EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/v1/models/lstm')"
 
+# UVICORN_ROOT_PATH tells FastAPI what prefix it's reverse-proxied under, so
+# the generated OpenAPI spec declares a "servers" entry and Swagger UI's
+# "Try it out" calls the prefixed path instead of the domain root. Empty by
+# default (local/dev, served at the root); the production compose file sets
+# it to /model to match deploy/Caddyfile's route. This only affects URL
+# generation in docs/openapi.json — Caddy's own uri strip_prefix already
+# handles the actual request routing regardless of this setting.
+ENV UVICORN_ROOT_PATH=
+
 # Convert .pt → .onnx at startup if ONNX not already present, then serve
-CMD ["sh", "-c", "python convert_to_onnx.py && uvicorn app:app --host 0.0.0.0 --port 8080"]
+CMD ["sh", "-c", "python convert_to_onnx.py && uvicorn app:app --host 0.0.0.0 --port 8080 --root-path \"$UVICORN_ROOT_PATH\""]

@@ -68,6 +68,10 @@ services:
       - CHECKPOINT_PATH=/checkpoint/lstm_checkpoint_best.pt
       - DECISION_THRESHOLD=${DECISION_THRESHOLD:-0.90}
       - MODEL_VERSION=${MODEL_VERSION:-1.2.0}
+      # Matches the /model route in deploy/Caddyfile — makes Swagger UI's
+      # "Try it out" call the correctly-prefixed URL instead of the domain
+      # root. See the comment on UVICORN_ROOT_PATH in Dockerfile.serving.
+      - UVICORN_ROOT_PATH=/model
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/v1/models/lstm')"]
       interval: 15s
