@@ -60,6 +60,25 @@
 	}
 
 	# ---------------------------------------------------------------------
+	# /model/* -> the LSTM inference API.
+	#
+	# No write-guard here, unlike /api — this server holds no state to
+	# destroy. POST is the normal, intended use (the :predict endpoint), not
+	# something to block. The only real risk is compute abuse (someone
+	# hammering inference for free CPU cycles), which is an acceptable
+	# tradeoff for a public demo and not addressed here.
+	#
+	# Swagger UI's "Try it out" button may call absolute paths that miss the
+	# /model prefix, because the FastAPI app has no root_path configured for
+	# it — verified against the live deployment; curl and any direct client
+	# call work correctly regardless.
+	# ---------------------------------------------------------------------
+	handle /model/* {
+		uri strip_prefix /model
+		reverse_proxy lstm-serving:8080
+	}
+
+	# ---------------------------------------------------------------------
 	# /kibana/* -> Kibana, behind its own login.
 	#
 	# Kibana has real authentication, so it is exposed as-is rather than with
