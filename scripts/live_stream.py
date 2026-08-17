@@ -88,12 +88,19 @@ SYDNEY_TZ = ZoneInfo("Australia/Sydney")
 # "off_hours" only fires when it is genuinely off-hours right now; see
 # _pick_profile.
 PROFILE_WEIGHTS: dict[str, float] = {
-    "routine": 0.66,
+    "routine": 0.52,
     "high_value": 0.06,
     "geo": 0.07,
     "off_hours": 0.05,
     "watchlist": 0.06,
-    "attack": 0.04,
+    # "attack" is the only profile that reliably crosses the 0.70 FLAGGED
+    # line on its own -- the others each trigger a single rule, which caps
+    # the blended score at 0.132 (0.33 siem_score x 0.40) without the model
+    # independently agreeing. At the original 0.04 weight a live public demo
+    # could sit for several minutes between flagged cases; raised so a viewer
+    # watching the dashboard sees one within roughly a minute, while routine
+    # traffic still dominates the feed.
+    "attack": 0.18,
     "slow_burn": 0.06,
 }
 
